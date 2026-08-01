@@ -23,5 +23,8 @@ app.use(
 app.use(express.static("public"));
 
 app.use(cookieParser());
+import voiceRouter from "./routes/voice.routes.js";
+
+app.use("/api/v1/voices", voiceRouter);
 
 export { app };
