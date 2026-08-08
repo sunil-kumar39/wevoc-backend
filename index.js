@@ -3,7 +3,7 @@ dotenv.config();
 
 import connectDB from "./db/index.js";
 import { app } from "./app.js";
-app.use("/api/v1/search", searchRouter);
+
 
 connectDB()
     .then(() => {
