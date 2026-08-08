@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { Notification } from "../models/notification.model.js";
 
 const toggleFollow = asyncHandler(async (req, res) => {
     const {userId} = req.params
@@ -35,6 +36,12 @@ const toggleFollow = asyncHandler(async (req, res) => {
         follower:req.user._id,
         following:userId
     })
+
+    await Notification.create({
+    sender: req.user._id,
+    receiver: userId,
+    type: "follow"
+    });
 
     return res.status(201).json(new ApiResponse(201,follow,"User followed successfully"))
 });

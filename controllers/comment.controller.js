@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Comment } from "../models/comment.model.js";
 import { Voice } from "../models/voice.model.js";
+import { Notification } from "../models/notification.model.js";
 import mongoose, { isValidObjectId } from "mongoose";
 
 const addComment = asyncHandler(async(req,res)=>{
@@ -26,6 +27,16 @@ const addComment = asyncHandler(async(req,res)=>{
         voice:voiceId,
         owner:req.user._id
     })
+
+    if (voice.owner.toString() !== req.user._id.toString()) {
+    await Notification.create({
+        sender: req.user._id,
+        receiver: voice.owner,
+        type: "comment",
+        voice: voiceId,
+        comment: comment._id
+    });
+    }
     return res.status(201).json(new ApiResponse(201,comment,"Comment added successfully"))
 })
 

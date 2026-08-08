@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Like } from "../models/like.model.js";
 import { Comment } from "../models/comment.model.js";
+import { Notification } from "../models/notification.model.js";
 import { Voice } from "../models/voice.model.js";
 import mongoose, { isValidObjectId } from "mongoose";
 
@@ -34,6 +35,15 @@ const toggleVoiceLike = asyncHandler(async (req, res) => {
         voice:voiceId,
         likedBy:req.user._id
     })
+
+   if (voice.owner.toString() !== req.user._id.toString()) {
+    await Notification.create({
+        sender: req.user._id,
+        receiver: voice.owner,
+        type: "like",
+        voice: voiceId
+    });
+}
 
     return res.status(201).json(new ApiResponse(201,like,"Voice Liked successfully"))
 });
