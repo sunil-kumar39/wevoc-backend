@@ -170,6 +170,11 @@ const getPlaylistById = asyncHandler(async (req, res) => {
             }
         }
     ])
+
+    if (!playlist.length) {
+    throw new ApiError(404, "Playlist not found");
+}
+
     return res.status(200).json(new ApiResponse(200,playlist[0],"Playlist fetched successfully by playlistId"))
 });
 
@@ -209,7 +214,7 @@ const addVoiceToPlaylist = asyncHandler(async (req, res) => {
     }
    },{new:true})
 
-   return res.status(200).json(new ApiResponse(200,updatePlaylist,"Voice added successfully"))
+   return res.status(200).json(new ApiResponse(200,updatedPlaylist,"Voice added successfully"))
 });
 
 const removeVoiceFromPlaylist = asyncHandler(async (req, res) => {
@@ -241,7 +246,7 @@ const removeVoiceFromPlaylist = asyncHandler(async (req, res) => {
     }
    },{new:true})
 
-   return res.status(200).json(new ApiResponse(200,updatePlaylist,"Voice removed successfully"))
+   return res.status(200).json(new ApiResponse(200,updatedPlaylist,"Voice removed successfully"))
 });
 
 const updatePlaylist = asyncHandler(async (req, res) => {
@@ -271,7 +276,7 @@ const updatePlaylist = asyncHandler(async (req, res) => {
             new:true
         }
     )
-    return res.status(200).json(new ApiResponse(200,updatePlaylist,"Playlist updated successfully"))
+    return res.status(200).json(new ApiResponse(200,updatedPlaylist,"Playlist updated successfully"))
 });
 
 const deletePlaylist = asyncHandler(async (req, res) => {
