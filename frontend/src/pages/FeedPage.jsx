@@ -330,7 +330,7 @@ export default function FeedPage() {
                     <SearchIcon />
 
                     <input
-                        placeholder="Search WeVoc"
+                        placeholder="Search Wevoc"
                         value={searchQuery}
                         onChange={(e) =>
                             setSearchQuery(
