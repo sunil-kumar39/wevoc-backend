@@ -100,9 +100,12 @@ const loginUser = asyncHandler(async(req,res)=>{
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
     const options = {
-        httpOnly:true,
-        secure:true
-    }
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production"
+        ? "none"
+        : "lax"
+};
 
     return res.status(200).cookie("accessToken",accessToken,options).cookie("refreshToken",refreshToken,options)
     .json(new ApiResponse(200,{user:loggedInUser,accessToken,refreshToken},"User loggedIn successfully"))
@@ -219,7 +222,7 @@ const updateAccountDetails = asyncHandler(async(req,res)=>{
 const  updateUserAvatar = asyncHandler(async(req,res)=>{
     const avatarLocalPath = req.file?.path
 
-    if(!avatar || !avatarLocalPath){
+    if(!avatarLocalPath){
         throw new ApiError(400,"Avatar file is missing")
     }
 

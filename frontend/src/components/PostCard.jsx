@@ -1,129 +1,821 @@
-import { useState } from 'react';
-import Avatar from './Avatar';
-import { Waveform, LiveBars } from './Waveform';
-import { BookmarkIcon, HeartIcon, HeartOutlineIcon, MicIcon, PauseIcon, PlayIcon, ProfileIcon, ReplyIcon, ShareIcon, FlameIcon } from './Icons';
-import { useApp } from '../context/AppContext';
-import { timeAgo } from '../utils/helpers';
+import { useEffect, useRef, useState } from "react";
 
-export default function PostCard({ post, style, className = '' }) {
-  const { navigate, bookmarks, toggleBookmark } = useApp();
-  const [liked, setLiked] = useState(post.likes.includes('me123'));
-  const [likeCount, setLikeCount] = useState(post.likes.length);
-  const [playing, setPlaying] = useState(false);
-  const [showReply, setShowReply] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recorded, setRecorded] = useState(false);
+import Avatar from "./Avatar";
+import { Waveform } from "./Waveform";
 
-  const isAnon = post.isAnonymous;
-  const author = isAnon ? null : post.user;
-  const displayName = isAnon ? null : author?.name;
-  const displayHandle = isAnon ? null : `@${author?.username}`;
-  const isBkd = bookmarks.includes(post._id);
+import {
+    BookmarkIcon,
+    HeartIcon,
+    HeartOutlineIcon,
+    PauseIcon,
+    PlayIcon,
+    ProfileIcon,
+    ReplyIcon,
+    ShareIcon,
+    FlameIcon,
+} from "./Icons";
 
-  const handleLike = (e) => {
-    e.stopPropagation();
-    setLiked(l => { setLikeCount(c => l ? c - 1 : c + 1); return !l; });
-  };
-  const handlePlay = (e) => { e.stopPropagation(); setPlaying(p => !p); };
-  const handleReply = (e) => { e.stopPropagation(); setShowReply(r => !r); };
-  const handleBk = (e) => { e.stopPropagation(); toggleBookmark(post._id); };
-  const handleRecord = (e) => {
-    e.stopPropagation();
-    if (recording) { setRecording(false); setRecorded(true); }
-    else { setRecording(true); setRecorded(false); }
-  };
-  const goUser = (e) => { e.stopPropagation(); if (!isAnon) navigate('user', post.user); };
+import { useApp } from "../context/AppContext";
 
-  return (
-    <article className={`post-card${className ? ` ${className}` : ''}`} style={style}>
-      {/* Avatar col */}
-      <div className="post-avatar-col">
-        <Avatar
-          name={isAnon ? '?' : displayName}
-          size="md"
-          onClick={isAnon ? undefined : goUser}
-        />
-      </div>
+import {
+    toggleVoiceLike,
+} from "../api/like.api";
 
-      {/* Body col */}
-      <div className="post-body-col">
-        {/* Header */}
-        <div className="post-header">
-          <div className="post-meta">
-            {isAnon ? (
-              <span className="anon-pill"><ProfileIcon /> Anonymous</span>
-            ) : (
-              <>
-                <span className="post-name" onClick={goUser}>{displayName}</span>
-                <span className="post-handle">{displayHandle}</span>
-                <span className="post-sep">·</span>
-              </>
-            )}
-            <span className="post-time">{timeAgo(post.createdAt)}</span>
-          </div>
-          <button className="post-more-btn" onClick={e => e.stopPropagation()}>···</button>
-        </div>
+import {
+    timeAgo,
+} from "../utils/helpers";
 
-        {/* Caption */}
-        {post.caption && <p className="post-text">{post.caption}</p>}
 
-        {/* Audio player */}
-        <div className="audio-player">
-          <button className="play-btn" onClick={handlePlay}>
-            {playing ? <PauseIcon /> : <PlayIcon />}
-          </button>
-          <Waveform playing={playing} />
-          <span className="audio-dur">{post.duration}</span>
-        </div>
+export default function PostCard({
+    post,
+    style,
+    className = "",
+}) {
 
-        {/* Actions */}
-        <div className="post-actions">
-          <button className="act-btn act-reply" onClick={handleReply}>
-            <span className="act-ico"><ReplyIcon /></span>
-            <span className="act-num">{post.replyCount}</span>
-          </button>
-          <button className={`act-btn${liked ? ' liked' : ''}`} onClick={handleLike}>
-            <span className="act-ico">{liked ? <HeartIcon /> : <HeartOutlineIcon />}</span>
-            <span className="act-num">{likeCount}</span>
-          </button>
-          <button className={`act-btn${isBkd ? ' liked' : ''}`} onClick={handleBk}>
-            <span className="act-ico"><BookmarkIcon /></span>
-          </button>
-          <button className="act-btn act-share" onClick={e => e.stopPropagation()}>
-            <span className="act-ico"><ShareIcon /></span>
-          </button>
-          <div className="score-badge"><FlameIcon /> {post.score}</div>
-        </div>
+    const {
+        navigate,
+        bookmarks,
+        toggleBookmark,
+    } = useApp();
 
-        {/* Reply box */}
-        {showReply && (
-          <div style={{ marginTop: 12 }}>
-            <div className="record-strip">
-              {recording && <LiveBars />}
-              {recorded && !recording && (
-                <div className="audio-player" style={{ width: '100%', marginBottom: 0 }}>
-                  <button className="play-btn"><PlayIcon /></button>
-                  <Waveform bars={20} />
-                  <span className="audio-dur">0:06</span>
+
+    // =========================
+    // BASIC DATA
+    // =========================
+
+    const owner =
+        post?.owner || post?.user || null;
+
+
+    const displayName =
+        owner?.fullname ||
+        owner?.name ||
+        "Unknown User";
+
+
+    const username =
+        owner?.username || "";
+
+
+    const avatar =
+        owner?.avatar || null;
+
+
+    const voiceId =
+        post?._id;
+
+
+    const title =
+        post?.title || "";
+
+
+    const description =
+        post?.description ||
+        post?.caption ||
+        "";
+
+
+    const voiceFile =
+        post?.voiceFile ||
+        null;
+
+
+    const duration =
+        Number(post?.duration || 0);
+
+
+    const isBkd =
+        bookmarks.includes(
+            voiceId
+        );
+
+
+    // =========================
+    // STATES
+    // =========================
+
+    const [liked, setLiked] =
+        useState(
+            Boolean(
+                post?.isLiked
+            )
+        );
+
+
+    const [likeCount, setLikeCount] =
+        useState(
+            Number(
+                post?.likesCount || 0
+            )
+        );
+
+
+    const [playing, setPlaying] =
+        useState(false);
+
+
+    const [loadingLike, setLoadingLike] =
+        useState(false);
+
+
+    const [showReply, setShowReply] =
+        useState(false);
+
+
+    const audioRef =
+        useRef(null);
+
+
+    // =========================
+    // AUDIO
+    // =========================
+
+    useEffect(() => {
+
+        const audio =
+            audioRef.current;
+
+
+        if (!audio) {
+            return;
+        }
+
+
+        const handleEnded = () => {
+
+            setPlaying(false);
+
+        };
+
+
+        audio.addEventListener(
+            "ended",
+            handleEnded
+        );
+
+
+        return () => {
+
+            audio.removeEventListener(
+                "ended",
+                handleEnded
+            );
+
+        };
+
+    }, []);
+
+
+    // =========================
+    // PLAY / PAUSE
+    // =========================
+
+    const handlePlay = async (e) => {
+
+        e.stopPropagation();
+
+
+        const audio =
+            audioRef.current;
+
+
+        if (!audio || !voiceFile) {
+            return;
+        }
+
+
+        try {
+
+            if (playing) {
+
+                audio.pause();
+
+                setPlaying(false);
+
+            } else {
+
+                await audio.play();
+
+                setPlaying(true);
+
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Audio playback failed:",
+                error
+            );
+
+        }
+
+    };
+
+
+    // =========================
+    // LIKE
+    // =========================
+
+    const handleLike = async (e) => {
+
+        e.stopPropagation();
+
+
+        if (
+            !voiceId ||
+            loadingLike
+        ) {
+            return;
+        }
+
+
+        // Optimistic UI
+
+        const previousLiked =
+            liked;
+
+
+        const previousCount =
+            likeCount;
+
+
+        const nextLiked =
+            !liked;
+
+
+        setLiked(
+            nextLiked
+        );
+
+
+        setLikeCount(
+            nextLiked
+                ? previousCount + 1
+                : Math.max(
+                    0,
+                    previousCount - 1
+                )
+        );
+
+
+        try {
+
+            setLoadingLike(true);
+
+
+            const response =
+                await toggleVoiceLike(
+                    voiceId
+                );
+
+
+            const message =
+                response?.message
+                    ?.toLowerCase() || "";
+
+
+            const actuallyLiked =
+                message.includes(
+                    "liked"
+                ) &&
+                !message.includes(
+                    "unliked"
+                );
+
+
+            /*
+             * Backend is the final truth.
+             */
+
+            setLiked(
+                actuallyLiked
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Like failed:",
+                error
+            );
+
+
+            // Rollback
+
+            setLiked(
+                previousLiked
+            );
+
+
+            setLikeCount(
+                previousCount
+            );
+
+        } finally {
+
+            setLoadingLike(false);
+
+        }
+
+    };
+
+
+    // =========================
+    // BOOKMARK
+    // =========================
+
+    const handleBookmark = (e) => {
+
+        e.stopPropagation();
+
+        toggleBookmark(
+            voiceId
+        );
+
+    };
+
+
+    // =========================
+    // REPLY
+    // =========================
+
+    const handleReply = (e) => {
+
+        e.stopPropagation();
+
+        setShowReply(
+            (value) => !value
+        );
+
+    };
+
+
+    // =========================
+    // USER PROFILE
+    // =========================
+
+    const goUser = (e) => {
+
+        e.stopPropagation();
+
+
+        if (!owner?._id) {
+            return;
+        }
+
+
+        navigate(
+            "user",
+            owner
+        );
+
+    };
+
+
+    // =========================
+    // FORMAT DURATION
+    // =========================
+
+    const formatDuration = (
+        seconds
+    ) => {
+
+        if (!seconds) {
+            return "0:00";
+        }
+
+
+        const mins =
+            Math.floor(
+                seconds / 60
+            );
+
+
+        const secs =
+            Math.floor(
+                seconds % 60
+            )
+                .toString()
+                .padStart(
+                    2,
+                    "0"
+                );
+
+
+        return `${mins}:${secs}`;
+
+    };
+
+
+    // =========================
+    // SCORE
+    // =========================
+
+    const score =
+        Number(
+            post?.score ||
+            likeCount +
+            Number(post?.views || 0)
+        );
+
+
+    return (
+
+        <article
+            className={`post-card${
+                className
+                    ? ` ${className}`
+                    : ""
+            }`}
+            style={style}
+        >
+
+
+            {/* =========================
+                AVATAR
+            ========================= */}
+
+            <Avatar
+                name={
+                    displayName
+                }
+                src={
+                    avatar
+                }
+                size="md"
+                onClick={
+                    goUser
+                }
+            />
+
+
+            {/* =========================
+                BODY
+            ========================= */}
+
+            <div className="post-body-col">
+
+
+                {/* =====================
+                    HEADER
+                ===================== */}
+
+                <div className="post-header">
+
+                    <div className="post-meta">
+
+
+                        <span
+                            className="post-name"
+                            onClick={
+                                goUser
+                            }
+                        >
+
+                            {displayName}
+
+                        </span>
+
+
+                        <span className="post-handle">
+
+                            @{username}
+
+                        </span>
+
+
+                        <span className="post-sep">
+
+                            ·
+
+                        </span>
+
+
+                        <span className="post-time">
+
+                            {timeAgo(
+                                post?.createdAt
+                            )}
+
+                        </span>
+
+                    </div>
+
+
+                    <button
+                        className="post-more-btn"
+                        onClick={(e) =>
+                            e.stopPropagation()
+                        }
+                    >
+
+                        ···
+
+                    </button>
+
                 </div>
-              )}
-              <button className={`rec-btn${recording ? ' recording' : ''}`} onClick={handleRecord}>
-                {recording ? <PauseIcon /> : <MicIcon />}
-              </button>
-              <span className="rec-hint">
-                {recording ? 'Recording… tap to stop' : recorded ? 'Re-record or send below' : 'Tap to record a voice reply'}
-              </span>
+
+
+                {/* =====================
+                    TITLE
+                ===================== */}
+
+                {title && (
+
+                    <h3
+                        className="post-title"
+                        style={{
+                            margin:
+                                "8px 0 4px",
+                        }}
+                    >
+
+                        {title}
+
+                    </h3>
+
+                )}
+
+
+                {/* =====================
+                    DESCRIPTION
+                ===================== */}
+
+                {description && (
+
+                    <p className="post-text">
+
+                        {description}
+
+                    </p>
+
+                )}
+
+
+                {/* =====================
+                    AUDIO
+                ===================== */}
+
+                {voiceFile && (
+
+                    <>
+
+                        <audio
+                            ref={
+                                audioRef
+                            }
+                            src={
+                                voiceFile
+                            }
+                            preload="metadata"
+                        />
+
+
+                        <div className="audio-player">
+
+
+                            <button
+                                className="play-btn"
+                                onClick={
+                                    handlePlay
+                                }
+                            >
+
+                                {playing
+                                    ? (
+                                        <PauseIcon />
+                                    )
+                                    : (
+                                        <PlayIcon />
+                                    )
+                                }
+
+                            </button>
+
+
+                            <Waveform
+                                playing={
+                                    playing
+                                }
+                            />
+
+
+                            <span className="audio-dur">
+
+                                {formatDuration(
+                                    duration
+                                )}
+
+                            </span>
+
+                        </div>
+
+                    </>
+
+                )}
+
+
+                {/* =====================
+                    ACTIONS
+                ===================== */}
+
+                <div className="post-actions">
+
+
+                    {/* REPLY */}
+
+                    <button
+                        className="act-btn act-reply"
+                        onClick={
+                            handleReply
+                        }
+                    >
+
+                        <span className="act-ico">
+
+                            <ReplyIcon />
+
+                        </span>
+
+
+                        <span className="act-num">
+
+                            {post?.commentsCount ||
+                                post?.replyCount ||
+                                0}
+
+                        </span>
+
+                    </button>
+
+
+                    {/* LIKE */}
+
+                    <button
+                        className={`act-btn${
+                            liked
+                                ? " liked"
+                                : ""
+                        }`}
+                        disabled={
+                            loadingLike
+                        }
+                        onClick={
+                            handleLike
+                        }
+                    >
+
+                        <span className="act-ico">
+
+                            {liked
+                                ? (
+                                    <HeartIcon />
+                                )
+                                : (
+                                    <HeartOutlineIcon />
+                                )
+                            }
+
+                        </span>
+
+
+                        <span className="act-num">
+
+                            {likeCount}
+
+                        </span>
+
+                    </button>
+
+
+                    {/* BOOKMARK */}
+
+                    <button
+                        className={`act-btn${
+                            isBkd
+                                ? " liked"
+                                : ""
+                        }`}
+                        onClick={
+                            handleBookmark
+                        }
+                    >
+
+                        <span className="act-ico">
+
+                            <BookmarkIcon />
+
+                        </span>
+
+                    </button>
+
+
+                    {/* SHARE */}
+
+                    <button
+                        className="act-btn act-share"
+                        onClick={async (e) => {
+
+                            e.stopPropagation();
+
+
+                            try {
+
+                                await navigator.clipboard.writeText(
+                                    window.location.origin +
+                                    "/voice/" +
+                                    voiceId
+                                );
+
+                            } catch (
+                                error
+                            ) {
+
+                                console.error(
+                                    error
+                                );
+
+                            }
+
+                        }}
+                    >
+
+                        <span className="act-ico">
+
+                            <ShareIcon />
+
+                        </span>
+
+                    </button>
+
+
+                    {/* SCORE */}
+
+                    <div className="score-badge">
+
+                        <FlameIcon />
+
+                        {score}
+
+                    </div>
+
+                </div>
+
+
+                {/* =====================
+                    REPLY AREA
+                ===================== */}
+
+                {showReply && (
+
+                    <div
+                        style={{
+                            marginTop: 12,
+                        }}
+                    >
+
+                        <div className="empty-state">
+
+                            <div className="empty-ico">
+
+                                💬
+
+                            </div>
+
+
+                            <div className="empty-title">
+
+                                Comments
+
+                            </div>
+
+
+                            <div
+                                style={{
+                                    fontSize:
+                                        13,
+                                    color:
+                                        "var(--ink3)",
+                                }}
+                            >
+
+                                Comment system
+                                is connected
+                                next.
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                )}
+
             </div>
-            {recorded && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                <button className="btn btn-primary btn-sm" onClick={e => e.stopPropagation()}>
-                  Send Reply
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </article>
-  );
+
+        </article>
+
+    );
+
 }
+

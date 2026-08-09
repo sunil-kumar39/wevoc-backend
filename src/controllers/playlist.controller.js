@@ -201,12 +201,14 @@ const addVoiceToPlaylist = asyncHandler(async (req, res) => {
     throw new ApiError(403,"Unauthorized")
    }
 
-   if (playlist.voices.includes(voiceId)) {
+   if (playlist.voices.some(
+    (id) => id.toString() === voiceId
+)) {
     throw new ApiError(
         400,
         "Voice already exists in playlist"
     );
-    }
+}
 
    const updatedPlaylist = await Playlist.findByIdAndUpdate(playlistId,{
     $addToSet:{

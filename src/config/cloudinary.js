@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 
@@ -20,7 +21,9 @@ const uploadOnCloudinary = async (localFilePath) => {
         }
 
         return response;
+
     } catch (error) {
+
         if (localFilePath && fs.existsSync(localFilePath)) {
             fs.unlinkSync(localFilePath);
         }
@@ -29,13 +32,17 @@ const uploadOnCloudinary = async (localFilePath) => {
     }
 };
 
-const deleteFromCloudinary = async (publicId, resourceType = "image") => {
+const deleteFromCloudinary = async (
+    publicId,
+    resourceType = "image"
+) => {
     try {
         if (!publicId) return null;
 
         return await cloudinary.uploader.destroy(publicId, {
             resource_type: resourceType,
         });
+
     } catch (error) {
         throw error;
     }

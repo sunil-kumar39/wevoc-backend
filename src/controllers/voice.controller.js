@@ -49,25 +49,124 @@ return res.status(201).json(new ApiResponse(201,voice,"Voice uploaded Successful
 });
 
 const getAllVoices = asyncHandler(async (req, res) => {
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 10
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
 
-    const skip = (page-1)*limit
-    const voices = await Voice.find({
-        isPublished:true
-    }).populate("owner", "fullname username avatar")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+    const skip = (page - 1) * limit;
+
+    const voices = await Voice.aggregate([
+        {
+            $match: {
+                isPublished: true
+            }
+        },
+
+        // -------------------------
+        // Owner
+        // -------------------------
+
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            fullname: 1,
+                            username: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+
+        {
+            $addFields: {
+                owner: {
+                    $first: "$owner"
+                }
+            }
+        },
+
+        // -------------------------
+        // Likes count
+        // -------------------------
+
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "voice",
+                as: "likes"
+            }
+        },
+
+        {
+            $addFields: {
+                likesCount: {
+                    $size: "$likes"
+                }
+            }
+        },
+
+        // -------------------------
+        // Remove unnecessary likes array
+        // -------------------------
+
+        {
+            $project: {
+                likes: 0
+            }
+        },
+
+        // -------------------------
+        // Latest voices first
+        // -------------------------
+
+        {
+            $sort: {
+                createdAt: -1
+            }
+        },
+
+        // -------------------------
+        // Pagination
+        // -------------------------
+
+        {
+            $skip: skip
+        },
+
+        {
+            $limit: limit
+        }
+    ]);
+
 
     const totalVoices = await Voice.countDocuments({
-        isPublished:true
-    })
+        isPublished: true
+    });
 
-    return res.status(200).json(new ApiResponse(200,{
-        voices,page,limit,totalVoices,totalPages:Math.ceil(totalVoices / limit),
-    },"Voices fetched successfully"))
-})
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                voices,
+                page,
+                limit,
+                totalVoices,
+                totalPages: Math.ceil(
+                    totalVoices / limit
+                )
+            },
+            "Voices fetched successfully"
+        )
+    );
+});
 
 const getVoiceById = asyncHandler(async(req,res)=>{
     const {voiceId} = req.params

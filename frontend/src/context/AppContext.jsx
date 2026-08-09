@@ -1,48 +1,226 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from "react";
+
+import {
+    getCurrentUser,
+    loginUser,
+    logoutUser,
+    registerUser,
+} from "../api/auth.api";
+
 
 const Ctx = createContext(null);
 
+
 export function AppProvider({ children }) {
-  const [page, setPage] = useState('feed');
-  const [pageData, setPageData] = useState(null);
-  const [stack, setStack] = useState([]);
-  const [bookmarks, setBookmarks] = useState(['p1', 'p3']);
-  const [theme, setTheme] = useState('light');
-  const [searchQuery, setSearchQuery] = useState('');
 
-  const navigate = (nextPage, data = null) => {
-    setStack(s => [...s, { page, data: pageData }]);
-    setPage(nextPage);
-    setPageData(data);
-  };
+    // -------------------------
+    // Navigation state
+    // -------------------------
 
-  const goBack = () => {
-    if (!stack.length) return;
-    const prev = stack[stack.length - 1];
-    setStack(s => s.slice(0, -1));
-    setPage(prev.page);
-    setPageData(prev.data);
-  };
+    const [page, setPage] = useState("feed");
+    const [pageData, setPageData] = useState(null);
+    const [stack, setStack] = useState([]);
 
-  const navTo = (pg) => {
-    setStack([]);
-    setPage(pg);
-    setPageData(null);
-  };
 
-  const toggleBookmark = (id) => {
-    setBookmarks(b => b.includes(id) ? b.filter(x => x !== id) : [...b, id]);
-  };
+    // -------------------------
+    // UI state
+    // -------------------------
 
-  const toggleTheme = () => {
-    setTheme(t => t === 'light' ? 'dark' : 'light');
-  };
+    const [bookmarks, setBookmarks] = useState(["p1", "p3"]);
+    const [theme, setTheme] = useState("light");
+    const [searchQuery, setSearchQuery] = useState("");
 
-  return (
-    <Ctx.Provider value={{ page, pageData, navigate, goBack, navTo, bookmarks, toggleBookmark, theme, toggleTheme, searchQuery, setSearchQuery }}>
-      {children}
-    </Ctx.Provider>
-  );
+
+    // -------------------------
+    // Authentication state
+    // -------------------------
+
+    const [user, setUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
+
+    // -------------------------
+    // Check logged-in user
+    // -------------------------
+
+    useEffect(() => {
+        const checkCurrentUser = async () => {
+            try {
+                const response = await getCurrentUser();
+
+                setUser(response.data);
+
+            } catch (error) {
+                setUser(null);
+
+            } finally {
+                setAuthLoading(false);
+            }
+        };
+
+        checkCurrentUser();
+    }, []);
+
+
+    // -------------------------
+    // Login
+    // -------------------------
+
+    const login = async ({ email, username, password }) => {
+
+        const response = await loginUser({
+            email,
+            username,
+            password,
+        });
+
+        setUser(response.data.user);
+
+        return response;
+    };
+
+
+    // -------------------------
+    // Register
+    // -------------------------
+
+    const register = async ({
+        fullname,
+        email,
+        username,
+        password,
+        avatar,
+        coverImage,
+    }) => {
+
+        const response = await registerUser({
+            fullname,
+            email,
+            username,
+            password,
+            avatar,
+            coverImage,
+        });
+
+        return response;
+    };
+
+
+    // -------------------------
+    // Logout
+    // -------------------------
+
+    const logout = async () => {
+
+        try {
+            await logoutUser();
+
+        } finally {
+            setUser(null);
+            setPage("feed");
+            setPageData(null);
+            setStack([]);
+        }
+    };
+
+
+    // -------------------------
+    // Navigation
+    // -------------------------
+
+    const navigate = (nextPage, data = null) => {
+
+        setStack((s) => [
+            ...s,
+            {
+                page,
+                data: pageData,
+            },
+        ]);
+
+        setPage(nextPage);
+        setPageData(data);
+    };
+
+
+    const goBack = () => {
+
+        if (!stack.length) return;
+
+        const prev = stack[stack.length - 1];
+
+        setStack((s) => s.slice(0, -1));
+
+        setPage(prev.page);
+        setPageData(prev.data);
+    };
+
+
+    const navTo = (pg) => {
+
+        setStack([]);
+        setPage(pg);
+        setPageData(null);
+    };
+
+
+    // -------------------------
+    // Bookmarks
+    // -------------------------
+
+    const toggleBookmark = (id) => {
+
+        setBookmarks((b) =>
+            b.includes(id)
+                ? b.filter((x) => x !== id)
+                : [...b, id]
+        );
+    };
+
+
+    // -------------------------
+    // Theme
+    // -------------------------
+
+    const toggleTheme = () => {
+
+        setTheme((t) =>
+            t === "light" ? "dark" : "light"
+        );
+    };
+
+
+    return (
+        <Ctx.Provider
+            value={{
+                // Navigation
+                page,
+                pageData,
+                navigate,
+                goBack,
+                navTo,
+
+                // UI
+                bookmarks,
+                toggleBookmark,
+                theme,
+                toggleTheme,
+                searchQuery,
+                setSearchQuery,
+
+                // Authentication
+                user,
+                setUser,
+                authLoading,
+                login,
+                register,
+                logout,
+            }}
+        >
+            {children}
+        </Ctx.Provider>
+    );
 }
+
 
 export const useApp = () => useContext(Ctx);

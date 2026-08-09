@@ -1,12 +1,28 @@
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { toggleVoiceLike } from "../controllers/like.controller.js";
+
+import { verifyJWT } from "../middleware/auth.middleware.js";
+
+import {
+    toggleVoiceLike,
+    getLikedVoices,
+    toggleCommentLike,
+    getLikedComments,
+} from "../controllers/like.controller.js";
 
 const router = Router();
 
-router.route("/toggle/voice/:voiceId").post(
-    verifyJWT,
-    toggleVoiceLike
-);
+router.use(verifyJWT);
+
+
+// Voice likes
+router.route("/toggle/voice/:voiceId").post(toggleVoiceLike);
+
+router.route("/voices").get(getLikedVoices);
+
+
+// Comment likes
+router.route("/toggle/comment/:commentId").post(toggleCommentLike);
+
+router.route("/comments").get(getLikedComments);
 
 export default router;
