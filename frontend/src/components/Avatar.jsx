@@ -35,12 +35,12 @@ export default function Avatar({
 
                 <img
                     src={src}
-                    alt={name || "User"}
+                    alt={name || "Avatar"}
                     style={{
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
-                        borderRadius: "inherit",
+                        borderRadius: "50%",
                     }}
                 />
 

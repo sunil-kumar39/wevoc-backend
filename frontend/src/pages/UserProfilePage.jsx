@@ -6,64 +6,71 @@ import PostCard from "../components/PostCard";
 import { useApp } from "../context/AppContext";
 
 import {
-    getUserProfile,
     toggleFollow,
+    getUserProfile,
 } from "../api/follow.api";
 
-import {
-    getAllVoices,
-} from "../api/voice.api";
+import { getAllVoices } from "../api/voice.api";
 
-import { fmtDate } from "../utils/helpers";
+import { fmtDate, timeAgo } from "../utils/helpers";
 
 
 export default function UserProfilePage() {
 
     const {
-        pageData,
+        pageData: selectedUser,
         goBack,
-        user: currentUser,
+        navigate,
     } = useApp();
 
 
     // =========================
-    // STATES
+    // PROFILE
     // =========================
 
-    const [profile, setProfile] =
-        useState(null);
+    const [user, setUser] =
+        useState(selectedUser || null);
 
-    const [posts, setPosts] =
-        useState([]);
-
-    const [tab, setTab] =
-        useState("posts");
 
     const [loading, setLoading] =
         useState(true);
 
+
     const [followLoading, setFollowLoading] =
         useState(false);
+
 
     const [error, setError] =
         useState("");
 
 
     // =========================
-    // USER ID
+    // POSTS
     // =========================
 
-    const userId =
-        pageData?._id;
+    const [posts, setPosts] =
+        useState([]);
+
+
+    const [postsLoading, setPostsLoading] =
+        useState(false);
 
 
     // =========================
-    // FETCH PROFILE
+    // TAB
     // =========================
 
-    const fetchProfile = async () => {
+    const [tab, setTab] =
+        useState("posts");
 
-        if (!userId) {
+
+    // =========================
+    // LOAD PROFILE
+    // =========================
+
+    const loadProfile = async () => {
+
+        if (!selectedUser?._id) {
             return;
         }
 
@@ -71,25 +78,27 @@ export default function UserProfilePage() {
         try {
 
             setLoading(true);
-
             setError("");
 
 
             const response =
                 await getUserProfile(
-                    userId
+                    selectedUser._id
                 );
 
 
-            setProfile(
-                response?.data || null
-            );
+            if (response?.data) {
 
+                setUser(
+                    response.data
+                );
+
+            }
 
         } catch (error) {
 
             console.error(
-                "Failed to fetch profile:",
+                "Profile error:",
                 error
             );
 
@@ -109,17 +118,20 @@ export default function UserProfilePage() {
 
 
     // =========================
-    // FETCH USER POSTS
+    // LOAD USER POSTS
     // =========================
 
-    const fetchUserPosts = async () => {
+    const loadPosts = async () => {
 
-        if (!userId) {
+        if (!selectedUser?._id) {
             return;
         }
 
 
         try {
+
+            setPostsLoading(true);
+
 
             const response =
                 await getAllVoices(
@@ -128,30 +140,45 @@ export default function UserProfilePage() {
                 );
 
 
-            const allVoices =
+            const voices =
                 response?.data?.voices ||
                 [];
 
 
-            const userVoices =
-                allVoices.filter(
-                    (voice) =>
-                        voice.owner?._id ===
-                        userId
+            const userPosts =
+                voices.filter(
+                    (voice) => {
+
+                        const ownerId =
+                            voice?.owner?._id;
+
+                        return (
+                            ownerId &&
+                            String(ownerId) ===
+                            String(
+                                selectedUser._id
+                            )
+                        );
+
+                    }
                 );
 
 
             setPosts(
-                userVoices
+                userPosts
             );
 
 
         } catch (error) {
 
             console.error(
-                "Failed to fetch user posts:",
+                "Posts error:",
                 error
             );
+
+        } finally {
+
+            setPostsLoading(false);
 
         }
 
@@ -164,11 +191,10 @@ export default function UserProfilePage() {
 
     useEffect(() => {
 
-        fetchProfile();
+        loadProfile();
+        loadPosts();
 
-        fetchUserPosts();
-
-    }, [userId]);
+    }, [selectedUser?._id]);
 
 
     // =========================
@@ -178,7 +204,7 @@ export default function UserProfilePage() {
     const handleFollow = async () => {
 
         if (
-            !profile ||
+            !user?._id ||
             followLoading
         ) {
             return;
@@ -192,25 +218,36 @@ export default function UserProfilePage() {
 
             const response =
                 await toggleFollow(
-                    userId
+                    user._id
                 );
+
+
+            /*
+             * Backend returns:
+             *
+             * followed
+             * OR
+             * unfollowed
+             *
+             * depending on current state.
+             */
 
 
             const message =
-                response?.message
-                    ?.toLowerCase() || "";
+                response?.message ||
+                "";
 
 
-            const nowFollowing =
-                message.includes(
-                    "followed"
-                ) &&
-                !message.includes(
-                    "unfollowed"
-                );
+            const isNowFollowing =
+                message
+                    .toLowerCase()
+                    .includes("followed") &&
+                !message
+                    .toLowerCase()
+                    .includes("unfollowed");
 
 
-            setProfile(
+            setUser(
                 (current) => {
 
                     if (!current) {
@@ -222,15 +259,21 @@ export default function UserProfilePage() {
                         ...current,
 
                         isFollowing:
-                            nowFollowing,
+                            isNowFollowing,
 
                         followersCount:
-                            nowFollowing
-                                ? current.followersCount + 1
-                                : Math.max(
-                                    0,
-                                    current.followersCount - 1
-                                ),
+                            Math.max(
+                                0,
+                                (
+                                    current.followersCount ||
+                                    0
+                                ) +
+                                (
+                                    isNowFollowing
+                                        ? 1
+                                        : -1
+                                )
+                            ),
                     };
 
                 }
@@ -240,14 +283,14 @@ export default function UserProfilePage() {
         } catch (error) {
 
             console.error(
-                "Follow action failed:",
+                "Follow error:",
                 error
             );
 
 
-            setError(
+            alert(
                 error.message ||
-                "Failed to update follow"
+                "Unable to follow user"
             );
 
         } finally {
@@ -260,30 +303,22 @@ export default function UserProfilePage() {
 
 
     // =========================
-    // INVALID USER
+    // NO USER
     // =========================
 
-    if (!userId) {
+    if (!selectedUser) {
 
         return (
 
             <div className="empty-state">
 
-                <div className="empty-title">
-
-                    User not found
-
+                <div className="empty-ico">
+                    👤
                 </div>
 
-
-                <button
-                    className="btn btn-primary"
-                    onClick={goBack}
-                >
-
-                    Go back
-
-                </button>
+                <div className="empty-title">
+                    User not found
+                </div>
 
             </div>
 
@@ -296,16 +331,18 @@ export default function UserProfilePage() {
     // LOADING
     // =========================
 
-    if (loading) {
+    if (loading && !user) {
 
         return (
 
-            <div className="profile-page">
+            <div className="empty-state">
 
-                <div className="feed-loading">
+                <div className="empty-ico">
+                    👤
+                </div>
 
+                <div className="empty-title">
                     Loading profile...
-
                 </div>
 
             </div>
@@ -319,26 +356,34 @@ export default function UserProfilePage() {
     // ERROR
     // =========================
 
-    if (error && !profile) {
+    if (error && !user) {
 
         return (
 
             <div className="empty-state">
 
-                <div className="empty-title">
-
-                    {error}
-
+                <div className="empty-ico">
+                    ⚠️
                 </div>
 
+                <div className="empty-title">
+                    Failed to load profile
+                </div>
+
+                <div className="empty-sub">
+                    {error}
+                </div>
 
                 <button
-                    className="btn btn-primary"
-                    onClick={fetchProfile}
+                    className="btn btn-primary btn-sm"
+                    style={{
+                        marginTop: 12,
+                    }}
+                    onClick={
+                        loadProfile
+                    }
                 >
-
-                    Retry
-
+                    Try again
                 </button>
 
             </div>
@@ -348,39 +393,29 @@ export default function UserProfilePage() {
     }
 
 
-    if (!profile) {
-
-        return null;
-
-    }
-
-
-    // =========================
-    // IS OWN PROFILE
-    // =========================
-
-    const isOwnProfile =
-        currentUser?._id === userId;
-
-
     return (
 
-        <div className="profile-page">
+        <div>
 
 
             {/* =========================
                 HEADER
             ========================= */}
 
-            <div className="profile-header">
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                    marginBottom: 12,
+                }}
+            >
 
                 <button
-                    className="btn btn-ghost"
+                    className="btn btn-ghost btn-sm"
                     onClick={goBack}
                 >
-
                     ←
-
                 </button>
 
 
@@ -392,42 +427,22 @@ export default function UserProfilePage() {
                             fontSize: 18,
                         }}
                     >
-
-                        {profile.fullname}
-
+                        {user.fullname}
                     </div>
 
 
                     <div
                         style={{
                             fontSize: 13,
-                            color:
-                                "var(--ink3)",
+                            color: "var(--ink3)",
                         }}
                     >
-
-                        {posts.length} posts
-
+                        @{user.username}
                     </div>
 
                 </div>
 
             </div>
-
-
-            {/* =========================
-                ERROR
-            ========================= */}
-
-            {error && (
-
-                <div className="auth-error">
-
-                    {error}
-
-                </div>
-
-            )}
 
 
             {/* =========================
@@ -437,119 +452,113 @@ export default function UserProfilePage() {
             <div className="profile-info-wrap">
 
 
-                {/* AVATAR */}
+                {/* Avatar */}
 
                 <div className="profile-avatar-bump">
 
                     <Avatar
                         name={
-                            profile.fullname
+                            user.fullname
+                        }
+                        src={
+                            user.avatar
                         }
                         size="2xl"
-                        src={
-                            profile.avatar
-                        }
                     />
 
                 </div>
 
 
-                {/* NAME */}
+                {/* Name + Follow */}
 
-                <div className="profile-name">
+                <div
+                    className="profile-title-row"
+                >
 
-                    {profile.fullname}
+                    <div>
 
-                </div>
+                        <div className="profile-name">
 
+                            {user.fullname}
 
-                {/* USERNAME */}
-
-                <div className="profile-handle">
-
-                    @{profile.username}
-
-                </div>
+                        </div>
 
 
-                {/* BIO */}
+                        <div className="profile-handle">
 
-                {profile.bio && (
+                            @{user.username}
 
-                    <div className="profile-bio">
-
-                        {profile.bio}
+                        </div>
 
                     </div>
 
-                )}
 
-
-                {/* =====================
-                    FOLLOW BUTTON
-                ===================== */}
-
-                {!isOwnProfile && (
-
-                    <div
-                        style={{
-                            marginTop: 12,
-                        }}
+                    <button
+                        className={
+                            user.isFollowing
+                                ? "btn btn-secondary btn-sm"
+                                : "btn btn-primary btn-sm"
+                        }
+                        onClick={
+                            handleFollow
+                        }
+                        disabled={
+                            followLoading
+                        }
                     >
 
-                        <button
-                            className={
-                                profile.isFollowing
-                                    ? "btn btn-secondary btn-sm"
-                                    : "btn btn-primary btn-sm"
-                            }
-                            disabled={
-                                followLoading
-                            }
-                            onClick={
-                                handleFollow
-                            }
-                        >
+                        {followLoading
 
-                            {followLoading
-                                ? "..."
-                                : profile.isFollowing
-                                    ? "✓ Following"
-                                    : "+ Follow"
-                            }
+                            ? "..."
 
-                        </button>
+                            : user.isFollowing
+                                ? "Following"
+                                : "Follow"}
 
+                    </button>
+
+                </div>
+
+
+                {/* Bio */}
+
+                {user.bio && (
+
+                    <div
+                        className="profile-bio"
+                    >
+                        {user.bio}
                     </div>
 
                 )}
 
 
-                {/* =====================
-                    META
-                ===================== */}
+                {/* Meta */}
 
-                <div className="profile-meta-row">
+                <div
+                    className="profile-meta-row"
+                >
 
                     <div className="profile-meta-item">
 
                         📅 Joined{" "}
 
-                        {fmtDate(
-                            pageData?.createdAt
-                        )}
+                        {user.createdAt
+                            ? fmtDate(
+                                user.createdAt
+                            )
+                            : "Recently"}
 
                     </div>
 
                 </div>
 
 
-                {/* =====================
-                    STATS
-                ===================== */}
+                {/* Stats */}
 
-                <div className="profile-stats-row">
-
+                <div
+                    className="profile-stats-row"
+                >
 
                     <div className="stat-link">
 
@@ -572,10 +581,8 @@ export default function UserProfilePage() {
 
                         <span className="stat-count">
 
-                            {
-                                profile.followersCount ||
-                                0
-                            }
+                            {user.followersCount ||
+                                0}
 
                         </span>
 
@@ -592,10 +599,8 @@ export default function UserProfilePage() {
 
                         <span className="stat-count">
 
-                            {
-                                profile.followingCount ||
-                                0
-                            }
+                            {user.followingCount ||
+                                0}
 
                         </span>
 
@@ -618,7 +623,6 @@ export default function UserProfilePage() {
 
             <div className="tab-strip">
 
-
                 <button
                     className={`tab-strip-btn${
                         tab === "posts"
@@ -629,9 +633,7 @@ export default function UserProfilePage() {
                         setTab("posts")
                     }
                 >
-
                     Posts
-
                 </button>
 
 
@@ -645,9 +647,7 @@ export default function UserProfilePage() {
                         setTab("liked")
                     }
                 >
-
-                    Liked
-
+                    About
                 </button>
 
             </div>
@@ -659,76 +659,106 @@ export default function UserProfilePage() {
 
             {tab === "posts" && (
 
-                posts.length === 0 ? (
+                <>
 
-                    <div className="empty-state">
+                    {postsLoading ? (
 
-                        <div className="empty-ico">
+                        <div
+                            className="empty-state"
+                        >
 
-                            🎙
+                            <div className="empty-ico">
+                                🎙
+                            </div>
+
+                            <div className="empty-title">
+                                Loading posts...
+                            </div>
 
                         </div>
 
+                    ) : posts.length === 0 ? (
 
-                        <div className="empty-title">
+                        <div
+                            className="empty-state"
+                        >
 
-                            No posts yet
+                            <div className="empty-ico">
+                                🎙
+                            </div>
+
+                            <div className="empty-title">
+                                No posts yet
+                            </div>
+
+                            <div className="empty-sub">
+                                This user hasn't
+                                published any voices yet.
+                            </div>
 
                         </div>
 
-                    </div>
+                    ) : (
 
-                ) : (
+                        posts.map(
+                            (post) => (
 
-                    posts.map(
-                        (post) => (
+                                <PostCard
+                                    key={
+                                        post._id
+                                    }
+                                    post={
+                                        post
+                                    }
+                                />
 
-                            <PostCard
-                                key={
-                                    post._id
-                                }
-                                post={
-                                    post
-                                }
-                            />
-
+                            )
                         )
-                    )
 
-                )
+                    )}
+
+                </>
 
             )}
 
 
             {/* =========================
-                LIKED TAB
+                ABOUT
             ========================= */}
 
             {tab === "liked" && (
 
-                <div className="empty-state">
+                <div
+                    className="empty-state"
+                >
 
                     <div className="empty-ico">
-
-                        🤍
-
+                        👤
                     </div>
-
 
                     <div className="empty-title">
-
-                        Liked voices will
-                        appear here
-
+                        About {user.fullname}
                     </div>
 
+                    <div
+                        className="empty-sub"
+                        style={{
+                            maxWidth: 450,
+                            margin: "0 auto",
+                        }}
+                    >
 
-                    <p>
+                        @{user.username}
 
-                        We'll connect the
-                        liked voices API next.
+                        {user.bio && (
+                            <>
+                                <br />
+                                <br />
+                                {user.bio}
+                            </>
+                        )}
 
-                    </p>
+                    </div>
 
                 </div>
 

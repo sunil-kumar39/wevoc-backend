@@ -15,7 +15,7 @@ import { publishVoice } from "../api/voice.api";
 import { useApp } from "../context/AppContext";
 
 
-export default function ComposeBox() {
+export default function ComposeBox({ onPublished }) {
 
     const { user } = useApp();
 
@@ -391,18 +391,16 @@ export default function ComposeBox() {
 
 
             await publishVoice({
-
-                title: title.trim(),
-
-                description:
-                    caption.trim(),
-
-                voiceFile,
-
-                thumbnail:
-                    thumbnailFile,
-
+            title: title.trim(),
+             description: caption.trim(),
+             voiceFile,
+             thumbnail: thumbnailFile,
+              isAnonymous: anon,
             });
+
+            if (onPublished) {
+             onPublished();
+             }
 
 
             setSuccess(

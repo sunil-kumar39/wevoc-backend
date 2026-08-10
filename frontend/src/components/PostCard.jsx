@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import Avatar from "./Avatar";
 import { Waveform } from "./Waveform";
@@ -17,13 +17,16 @@ import {
 
 import { useApp } from "../context/AppContext";
 
-import {
-    toggleVoiceLike,
-} from "../api/like.api";
+import { toggleVoiceLike } from "../api/like.api";
 
 import {
-    timeAgo,
-} from "../utils/helpers";
+    addComment,
+    getVoiceComments,
+    updateComment,
+    deleteComment,
+} from "../api/comment.api";
+
+import { timeAgo } from "../utils/helpers";
 
 
 export default function PostCard({
@@ -36,153 +39,437 @@ export default function PostCard({
         navigate,
         bookmarks,
         toggleBookmark,
+        user,
     } = useApp();
 
 
     // =========================
-    // BASIC DATA
+    // AUTHOR
     // =========================
 
-    const owner =
-        post?.owner || post?.user || null;
+    const isAnon =
+        post?.isAnonymous === true;
 
+    const author = isAnon
+        ? null
+        : post?.owner || post?.user;
 
-    const displayName =
-        owner?.fullname ||
-        owner?.name ||
-        "Unknown User";
+    const displayName = isAnon
+        ? null
+        : author?.fullname ||
+          author?.name ||
+          "Unknown User";
 
-
-    const username =
-        owner?.username || "";
-
-
-    const avatar =
-        owner?.avatar || null;
-
-
-    const voiceId =
-        post?._id;
-
-
-    const title =
-        post?.title || "";
-
-
-    const description =
-        post?.description ||
-        post?.caption ||
-        "";
-
-
-    const voiceFile =
-        post?.voiceFile ||
-        null;
-
-
-    const duration =
-        Number(post?.duration || 0);
-
-
-    const isBkd =
-        bookmarks.includes(
-            voiceId
-        );
+    const displayHandle = isAnon
+        ? null
+        : `@${author?.username || ""}`;
 
 
     // =========================
-    // STATES
+    // LIKE
     // =========================
 
     const [liked, setLiked] =
-        useState(
-            Boolean(
-                post?.isLiked
-            )
-        );
-
+        useState(post?.isLiked || false);
 
     const [likeCount, setLikeCount] =
-        useState(
-            Number(
-                post?.likesCount || 0
-            )
-        );
+        useState(post?.likesCount || 0);
 
-
-    const [playing, setPlaying] =
+    const [likeLoading, setLikeLoading] =
         useState(false);
-
-
-    const [loadingLike, setLoadingLike] =
-        useState(false);
-
-
-    const [showReply, setShowReply] =
-        useState(false);
-
-
-    const audioRef =
-        useRef(null);
 
 
     // =========================
     // AUDIO
     // =========================
 
-    useEffect(() => {
+    const [playing, setPlaying] =
+        useState(false);
 
-        const audio =
-            audioRef.current;
+    const [audio] =
+        useState(() => {
 
+            if (!post?.voiceFile) {
+                return null;
+            }
 
-        if (!audio) {
-            return;
-        }
-
-
-        const handleEnded = () => {
-
-            setPlaying(false);
-
-        };
-
-
-        audio.addEventListener(
-            "ended",
-            handleEnded
-        );
-
-
-        return () => {
-
-            audio.removeEventListener(
-                "ended",
-                handleEnded
+            return new Audio(
+                post.voiceFile
             );
 
-        };
-
-    }, []);
+        });
 
 
     // =========================
-    // PLAY / PAUSE
+    // COMMENTS
+    // =========================
+
+    const [showComments, setShowComments] =
+        useState(false);
+
+    const [comments, setComments] =
+        useState([]);
+
+    const [commentsLoading, setCommentsLoading] =
+        useState(false);
+
+    const [commentLoading, setCommentLoading] =
+        useState(false);
+
+    const [commentText, setCommentText] =
+        useState("");
+
+    const [commentError, setCommentError] =
+        useState("");
+
+    const [editingCommentId, setEditingCommentId] =
+        useState(null);
+
+    const [editText, setEditText] =
+        useState("");
+
+
+    // =========================
+    // BOOKMARK
+    // =========================
+
+    const isBkd =
+        bookmarks.includes(post?._id);
+
+
+    // =========================
+    // LOAD COMMENTS
+    // =========================
+
+    const loadComments = async () => {
+
+        try {
+
+            setCommentsLoading(true);
+            setCommentError("");
+
+            const response =
+                await getVoiceComments(
+                    post._id
+                );
+
+            setComments(
+                response?.data || []
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Comments error:",
+                error
+            );
+
+            setCommentError(
+                error.message ||
+                "Failed to load comments"
+            );
+
+        } finally {
+
+            setCommentsLoading(false);
+
+        }
+
+    };
+
+
+    // =========================
+    // OPEN COMMENTS
+    // =========================
+
+    const handleReply = async (e) => {
+
+        e.stopPropagation();
+
+        const next =
+            !showComments;
+
+        setShowComments(next);
+
+        if (
+            next &&
+            comments.length === 0
+        ) {
+            await loadComments();
+        }
+
+    };
+
+
+    // =========================
+    // ADD COMMENT
+    // =========================
+
+    const handleAddComment = async (e) => {
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const content =
+            commentText.trim();
+
+        if (!content) {
+            return;
+        }
+
+        try {
+
+            setCommentLoading(true);
+            setCommentError("");
+
+            const response =
+                await addComment(
+                    post._id,
+                    content
+                );
+
+            const newComment =
+                response?.data;
+
+            if (newComment) {
+
+                /*
+                 * Backend addComment currently
+                 * returns only the comment owner ID.
+                 *
+                 * So reload comments after adding
+                 * to get full owner information.
+                 */
+
+                setCommentText("");
+
+                await loadComments();
+
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Add comment error:",
+                error
+            );
+
+            setCommentError(
+                error.message ||
+                "Failed to add comment"
+            );
+
+        } finally {
+
+            setCommentLoading(false);
+
+        }
+
+    };
+
+
+    // =========================
+    // START EDIT
+    // =========================
+
+    const startEdit = (
+        comment
+    ) => {
+
+        setEditingCommentId(
+            comment._id
+        );
+
+        setEditText(
+            comment.content
+        );
+
+    };
+
+
+    // =========================
+    // CANCEL EDIT
+    // =========================
+
+    const cancelEdit = () => {
+
+        setEditingCommentId(null);
+
+        setEditText("");
+
+    };
+
+
+    // =========================
+    // UPDATE COMMENT
+    // =========================
+
+    const handleUpdateComment =
+        async (commentId) => {
+
+            const content =
+                editText.trim();
+
+            if (!content) {
+                return;
+            }
+
+            try {
+
+                setCommentLoading(true);
+                setCommentError("");
+
+                await updateComment(
+                    commentId,
+                    content
+                );
+
+                setEditingCommentId(null);
+                setEditText("");
+
+                await loadComments();
+
+            } catch (error) {
+
+                console.error(
+                    "Update comment error:",
+                    error
+                );
+
+                setCommentError(
+                    error.message ||
+                    "Failed to update comment"
+                );
+
+            } finally {
+
+                setCommentLoading(false);
+
+            }
+
+        };
+
+
+    // =========================
+    // DELETE COMMENT
+    // =========================
+
+    const handleDeleteComment =
+        async (commentId) => {
+
+            const confirmed =
+                window.confirm(
+                    "Delete this comment?"
+                );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+
+                setCommentLoading(true);
+                setCommentError("");
+
+                await deleteComment(
+                    commentId
+                );
+
+                await loadComments();
+
+            } catch (error) {
+
+                console.error(
+                    "Delete comment error:",
+                    error
+                );
+
+                setCommentError(
+                    error.message ||
+                    "Failed to delete comment"
+                );
+
+            } finally {
+
+                setCommentLoading(false);
+
+            }
+
+        };
+
+
+    // =========================
+    // LIKE VOICE
+    // =========================
+
+    const handleLike = async (e) => {
+
+        e.stopPropagation();
+
+        if (likeLoading) {
+            return;
+        }
+
+        try {
+
+            setLikeLoading(true);
+
+            const response =
+                await toggleVoiceLike(
+                    post._id
+                );
+
+            const likedNow =
+                response?.data?.liked ??
+                response?.data?.isLiked ??
+                !liked;
+
+            setLiked(likedNow);
+
+            setLikeCount((count) => {
+
+                if (likedNow && !liked) {
+                    return count + 1;
+                }
+
+                if (!likedNow && liked) {
+                    return Math.max(
+                        0,
+                        count - 1
+                    );
+                }
+
+                return count;
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "Like error:",
+                error
+            );
+
+        } finally {
+
+            setLikeLoading(false);
+
+        }
+
+    };
+
+
+    // =========================
+    // AUDIO PLAY
     // =========================
 
     const handlePlay = async (e) => {
 
         e.stopPropagation();
 
-
-        const audio =
-            audioRef.current;
-
-
-        if (!audio || !voiceFile) {
+        if (!audio) {
             return;
         }
-
 
         try {
 
@@ -198,122 +485,18 @@ export default function PostCard({
 
                 setPlaying(true);
 
+                audio.onended = () => {
+                    setPlaying(false);
+                };
+
             }
 
         } catch (error) {
 
             console.error(
-                "Audio playback failed:",
+                "Audio playback error:",
                 error
             );
-
-        }
-
-    };
-
-
-    // =========================
-    // LIKE
-    // =========================
-
-    const handleLike = async (e) => {
-
-        e.stopPropagation();
-
-
-        if (
-            !voiceId ||
-            loadingLike
-        ) {
-            return;
-        }
-
-
-        // Optimistic UI
-
-        const previousLiked =
-            liked;
-
-
-        const previousCount =
-            likeCount;
-
-
-        const nextLiked =
-            !liked;
-
-
-        setLiked(
-            nextLiked
-        );
-
-
-        setLikeCount(
-            nextLiked
-                ? previousCount + 1
-                : Math.max(
-                    0,
-                    previousCount - 1
-                )
-        );
-
-
-        try {
-
-            setLoadingLike(true);
-
-
-            const response =
-                await toggleVoiceLike(
-                    voiceId
-                );
-
-
-            const message =
-                response?.message
-                    ?.toLowerCase() || "";
-
-
-            const actuallyLiked =
-                message.includes(
-                    "liked"
-                ) &&
-                !message.includes(
-                    "unliked"
-                );
-
-
-            /*
-             * Backend is the final truth.
-             */
-
-            setLiked(
-                actuallyLiked
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "Like failed:",
-                error
-            );
-
-
-            // Rollback
-
-            setLiked(
-                previousLiked
-            );
-
-
-            setLikeCount(
-                previousCount
-            );
-
-        } finally {
-
-            setLoadingLike(false);
 
         }
 
@@ -329,22 +512,7 @@ export default function PostCard({
         e.stopPropagation();
 
         toggleBookmark(
-            voiceId
-        );
-
-    };
-
-
-    // =========================
-    // REPLY
-    // =========================
-
-    const handleReply = (e) => {
-
-        e.stopPropagation();
-
-        setShowReply(
-            (value) => !value
+            post._id
         );
 
     };
@@ -358,53 +526,111 @@ export default function PostCard({
 
         e.stopPropagation();
 
+        if (!isAnon && author) {
 
-        if (!owner?._id) {
-            return;
+            navigate(
+                "user",
+                author
+            );
+
         }
-
-
-        navigate(
-            "user",
-            owner
-        );
 
     };
 
 
     // =========================
-    // FORMAT DURATION
+    // SHARE
+    // =========================
+
+    const handleShare = async (e) => {
+
+        e.stopPropagation();
+
+        try {
+
+            const url =
+                `${window.location.origin}/voice/${post._id}`;
+
+            if (navigator.share) {
+
+                await navigator.share({
+                    title:
+                        post.title ||
+                        "WeVoc Voice",
+
+                    text:
+                        post.description ||
+                        "Check out this voice on WeVoc",
+
+                    url,
+                });
+
+            } else {
+
+                await navigator.clipboard
+                    .writeText(url);
+
+                alert(
+                    "Voice link copied!"
+                );
+
+            }
+
+        } catch (error) {
+
+            console.log(
+                "Share cancelled"
+            );
+
+        }
+
+    };
+
+
+    // =========================
+    // DURATION
     // =========================
 
     const formatDuration = (
         seconds
     ) => {
 
-        if (!seconds) {
+        if (
+            !seconds ||
+            isNaN(seconds)
+        ) {
             return "0:00";
         }
-
 
         const mins =
             Math.floor(
                 seconds / 60
             );
 
-
         const secs =
             Math.floor(
                 seconds % 60
-            )
-                .toString()
-                .padStart(
-                    2,
-                    "0"
-                );
+            );
 
-
-        return `${mins}:${secs}`;
+        return `${mins}:${secs
+            .toString()
+            .padStart(2, "0")}`;
 
     };
+
+
+    // =========================
+    // COMMENT COUNT
+    // =========================
+
+    const commentCount =
+        showComments
+            ? comments.length
+            : (
+                post?.commentsCount ||
+                post?.commentCount ||
+                0
+            );
 
 
     // =========================
@@ -412,10 +638,10 @@ export default function PostCard({
     // =========================
 
     const score =
-        Number(
-            post?.score ||
-            likeCount +
-            Number(post?.views || 0)
+        post?.score ??
+        (
+            (post?.views || 0) +
+            likeCount * 5
         );
 
 
@@ -430,21 +656,26 @@ export default function PostCard({
             style={style}
         >
 
-
             {/* =========================
                 AVATAR
             ========================= */}
 
             <Avatar
                 name={
-                    displayName
+                    isAnon
+                        ? "?"
+                        : displayName
                 }
                 src={
-                    avatar
+                    isAnon
+                        ? undefined
+                        : author?.avatar
                 }
                 size="md"
                 onClick={
-                    goUser
+                    isAnon
+                        ? undefined
+                        : goUser
                 }
             />
 
@@ -456,46 +687,52 @@ export default function PostCard({
             <div className="post-body-col">
 
 
-                {/* =====================
-                    HEADER
-                ===================== */}
+                {/* HEADER */}
 
                 <div className="post-header">
 
                     <div className="post-meta">
 
+                        {isAnon ? (
 
-                        <span
-                            className="post-name"
-                            onClick={
-                                goUser
-                            }
-                        >
+                            <span className="anon-pill">
 
-                            {displayName}
+                                <ProfileIcon />
 
-                        </span>
+                                Anonymous
 
+                            </span>
 
-                        <span className="post-handle">
+                        ) : (
 
-                            @{username}
+                            <>
 
-                        </span>
+                                <span
+                                    className="post-name"
+                                    onClick={goUser}
+                                >
+                                    {displayName}
+                                </span>
 
+                                <span className="post-handle">
+                                    {displayHandle}
+                                </span>
 
-                        <span className="post-sep">
+                                <span className="post-sep">
+                                    ·
+                                </span>
 
-                            ·
+                            </>
 
-                        </span>
-
+                        )}
 
                         <span className="post-time">
 
-                            {timeAgo(
-                                post?.createdAt
-                            )}
+                            {post?.createdAt
+                                ? timeAgo(
+                                    post.createdAt
+                                )
+                                : ""}
 
                         </span>
 
@@ -508,121 +745,80 @@ export default function PostCard({
                             e.stopPropagation()
                         }
                     >
-
                         ···
-
                     </button>
 
                 </div>
 
 
-                {/* =====================
-                    TITLE
-                ===================== */}
+                {/* TITLE */}
 
-                {title && (
+                {post?.title && (
 
                     <h3
                         className="post-title"
                         style={{
                             margin:
-                                "8px 0 4px",
+                                "4px 0 6px",
                         }}
                     >
-
-                        {title}
-
+                        {post.title}
                     </h3>
 
                 )}
 
 
-                {/* =====================
-                    DESCRIPTION
-                ===================== */}
+                {/* DESCRIPTION */}
 
-                {description && (
+                {post?.description && (
 
                     <p className="post-text">
 
-                        {description}
+                        {post.description}
 
                     </p>
 
                 )}
 
 
-                {/* =====================
-                    AUDIO
-                ===================== */}
+                {/* AUDIO */}
 
-                {voiceFile && (
+                <div className="audio-player">
 
-                    <>
+                    <button
+                        className="play-btn"
+                        onClick={handlePlay}
+                    >
 
-                        <audio
-                            ref={
-                                audioRef
-                            }
-                            src={
-                                voiceFile
-                            }
-                            preload="metadata"
-                        />
+                        {playing
+                            ? <PauseIcon />
+                            : <PlayIcon />}
+
+                    </button>
 
 
-                        <div className="audio-player">
+                    <Waveform
+                        playing={playing}
+                    />
 
 
-                            <button
-                                className="play-btn"
-                                onClick={
-                                    handlePlay
-                                }
-                            >
+                    <span className="audio-dur">
 
-                                {playing
-                                    ? (
-                                        <PauseIcon />
-                                    )
-                                    : (
-                                        <PlayIcon />
-                                    )
-                                }
+                        {formatDuration(
+                            post?.duration
+                        )}
 
-                            </button>
+                    </span>
+
+                </div>
 
 
-                            <Waveform
-                                playing={
-                                    playing
-                                }
-                            />
-
-
-                            <span className="audio-dur">
-
-                                {formatDuration(
-                                    duration
-                                )}
-
-                            </span>
-
-                        </div>
-
-                    </>
-
-                )}
-
-
-                {/* =====================
-                    ACTIONS
-                ===================== */}
+                {/* ACTIONS */}
 
                 <div className="post-actions">
 
 
-                    {/* REPLY */}
+                    {/* COMMENTS */}
 
                     <button
                         className="act-btn act-reply"
@@ -637,12 +833,9 @@ export default function PostCard({
 
                         </span>
 
-
                         <span className="act-num">
 
-                            {post?.commentsCount ||
-                                post?.replyCount ||
-                                0}
+                            {commentCount}
 
                         </span>
 
@@ -657,27 +850,21 @@ export default function PostCard({
                                 ? " liked"
                                 : ""
                         }`}
-                        disabled={
-                            loadingLike
-                        }
                         onClick={
                             handleLike
+                        }
+                        disabled={
+                            likeLoading
                         }
                     >
 
                         <span className="act-ico">
 
                             {liked
-                                ? (
-                                    <HeartIcon />
-                                )
-                                : (
-                                    <HeartOutlineIcon />
-                                )
-                            }
+                                ? <HeartIcon />
+                                : <HeartOutlineIcon />}
 
                         </span>
-
 
                         <span className="act-num">
 
@@ -714,30 +901,9 @@ export default function PostCard({
 
                     <button
                         className="act-btn act-share"
-                        onClick={async (e) => {
-
-                            e.stopPropagation();
-
-
-                            try {
-
-                                await navigator.clipboard.writeText(
-                                    window.location.origin +
-                                    "/voice/" +
-                                    voiceId
-                                );
-
-                            } catch (
-                                error
-                            ) {
-
-                                console.error(
-                                    error
-                                );
-
-                            }
-
-                        }}
+                        onClick={
+                            handleShare
+                        }
                     >
 
                         <span className="act-ico">
@@ -762,11 +928,11 @@ export default function PostCard({
                 </div>
 
 
-                {/* =====================
-                    REPLY AREA
-                ===================== */}
+                {/* =========================
+                    COMMENTS
+                ========================= */}
 
-                {showReply && (
+                {showComments && (
 
                     <div
                         style={{
@@ -774,38 +940,347 @@ export default function PostCard({
                         }}
                     >
 
-                        <div className="empty-state">
+                        {/* Add comment */}
 
-                            <div className="empty-ico">
+                        <form
+                            onSubmit={
+                                handleAddComment
+                            }
+                            style={{
+                                display:
+                                    "flex",
+                                gap: 8,
+                                marginBottom:
+                                    12,
+                            }}
+                        >
 
-                                💬
+                            <input
+                                className="field"
+                                type="text"
+                                placeholder="Write a comment..."
+                                value={
+                                    commentText
+                                }
+                                onChange={(e) =>
+                                    setCommentText(
+                                        e.target.value
+                                    )
+                                }
+                                disabled={
+                                    commentLoading
+                                }
+                            />
 
-                            </div>
+                            <button
+                                type="submit"
+                                className="btn btn-primary btn-sm"
+                                disabled={
+                                    commentLoading ||
+                                    !commentText.trim()
+                                }
+                            >
+                                {commentLoading
+                                    ? "..."
+                                    : "Send"}
+                            </button>
+
+                        </form>
 
 
-                            <div className="empty-title">
+                        {/* Error */}
 
-                                Comments
-
-                            </div>
-
+                        {commentError && (
 
                             <div
+                                className="auth-error"
                                 style={{
-                                    fontSize:
-                                        13,
-                                    color:
-                                        "var(--ink3)",
+                                    marginBottom:
+                                        10,
                                 }}
                             >
-
-                                Comment system
-                                is connected
-                                next.
-
+                                {commentError}
                             </div>
 
-                        </div>
+                        )}
+
+
+                        {/* Loading */}
+
+                        {commentsLoading && (
+
+                            <div
+                                className="empty-sub"
+                                style={{
+                                    padding:
+                                        "10px 0",
+                                }}
+                            >
+                                Loading comments...
+                            </div>
+
+                        )}
+
+
+                        {/* Empty */}
+
+                        {!commentsLoading &&
+                            comments.length === 0 && (
+
+                                <div
+                                    className="empty-sub"
+                                    style={{
+                                        padding:
+                                            "10px 0",
+                                    }}
+                                >
+                                    No comments yet.
+                                    Be the first to comment.
+                                </div>
+
+                            )}
+
+
+                        {/* Comment list */}
+
+                        {!commentsLoading &&
+                            comments.map(
+                                (comment) => {
+
+                                    const commentOwner =
+                                        comment.owner;
+
+
+                                    const isOwner =
+                                        user?._id &&
+                                        commentOwner?._id &&
+                                        String(
+                                            user._id
+                                        ) === String(
+                                            commentOwner._id
+                                        );
+
+
+                                    return (
+
+                                        <div
+                                            key={
+                                                comment._id
+                                            }
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                gap: 10,
+                                                padding:
+                                                    "10px 0",
+                                                borderBottom:
+                                                    "1px solid var(--border)",
+                                            }}
+                                        >
+
+                                            <Avatar
+                                                name={
+                                                    commentOwner?.fullname ||
+                                                    "User"
+                                                }
+                                                src={
+                                                    commentOwner?.avatar
+                                                }
+                                                size="sm"
+                                                onClick={() =>
+                                                    navigate(
+                                                        "user",
+                                                        commentOwner
+                                                    )
+                                                }
+                                            />
+
+
+                                            <div
+                                                style={{
+                                                    flex: 1,
+                                                }}
+                                            >
+
+                                                <div
+                                                    style={{
+                                                        display:
+                                                            "flex",
+                                                        justifyContent:
+                                                            "space-between",
+                                                        gap: 8,
+                                                    }}
+                                                >
+
+                                                    <div>
+
+                                                        <strong>
+                                                            {
+                                                                commentOwner?.fullname ||
+                                                                "Unknown User"
+                                                            }
+                                                        </strong>
+
+                                                        <span
+                                                            style={{
+                                                                marginLeft:
+                                                                    6,
+                                                                color:
+                                                                    "var(--ink3)",
+                                                                fontSize:
+                                                                    12,
+                                                            }}
+                                                        >
+                                                            @
+                                                            {
+                                                                commentOwner?.username
+                                                            }
+                                                        </span>
+
+                                                    </div>
+
+
+                                                    {isOwner && (
+
+                                                        <div
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                gap: 5,
+                                                            }}
+                                                        >
+
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-ghost btn-sm"
+                                                                onClick={() =>
+                                                                    startEdit(
+                                                                        comment
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    commentLoading
+                                                                }
+                                                            >
+                                                                Edit
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-danger btn-sm"
+                                                                onClick={() =>
+                                                                    handleDeleteComment(
+                                                                        comment._id
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    commentLoading
+                                                                }
+                                                            >
+                                                                Delete
+                                                            </button>
+
+                                                        </div>
+
+                                                    )}
+
+                                                </div>
+
+
+                                                {editingCommentId ===
+                                                comment._id ? (
+
+                                                    <div
+                                                        style={{
+                                                            marginTop:
+                                                                8,
+                                                            display:
+                                                                "flex",
+                                                            gap: 8,
+                                                        }}
+                                                    >
+
+                                                        <input
+                                                            className="field"
+                                                            value={
+                                                                editText
+                                                            }
+                                                            onChange={(e) =>
+                                                                setEditText(
+                                                                    e.target.value
+                                                                )
+                                                            }
+                                                        />
+
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() =>
+                                                                handleUpdateComment(
+                                                                    comment._id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                commentLoading ||
+                                                                !editText.trim()
+                                                            }
+                                                        >
+                                                            Save
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-ghost btn-sm"
+                                                            onClick={
+                                                                cancelEdit
+                                                            }
+                                                        >
+                                                            Cancel
+                                                        </button>
+
+                                                    </div>
+
+                                                ) : (
+
+                                                    <p
+                                                        style={{
+                                                            margin:
+                                                                "5px 0 0",
+                                                        }}
+                                                    >
+                                                        {
+                                                            comment.content
+                                                        }
+                                                    </p>
+
+                                                )}
+
+
+                                                <div
+                                                    style={{
+                                                        fontSize:
+                                                            11,
+                                                        color:
+                                                            "var(--ink3)",
+                                                        marginTop:
+                                                            4,
+                                                    }}
+                                                >
+                                                    {comment.createdAt
+                                                        ? timeAgo(
+                                                            comment.createdAt
+                                                        )
+                                                        : ""}
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    );
+
+                                }
+                            )}
 
                     </div>
 
@@ -818,4 +1293,3 @@ export default function PostCard({
     );
 
 }
-

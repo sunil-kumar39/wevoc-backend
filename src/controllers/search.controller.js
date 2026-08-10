@@ -7,102 +7,208 @@ import { Voice } from "../models/voice.model.js";
 
 
 const searchUsers = asyncHandler(async (req, res) => {
+
     const { query } = req.query;
+
     if (!query || query.trim() === "") {
-    throw new ApiError(400, "Search query is required");
+        throw new ApiError(
+            400,
+            "Search query is required"
+        );
     }
 
     const users = await User.find({
-        $or:[
+        $or: [
             {
-                fullname:{
-                    $regex:query,
-                    $options:"i"
+                fullname: {
+                    $regex: query.trim(),
+                    $options: "i"
                 }
             },
             {
-                username:{
-                    $regex:query,
-                    $options:"i"
+                username: {
+                    $regex: query.trim(),
+                    $options: "i"
                 }
             }
         ]
-    }).select("fullname username avatar bio");
+    })
+        .select(
+            "fullname username avatar bio"
+        )
+        .limit(20);
 
-    return res.status(200).json(new ApiResponse(200,users,"Users fetched successfully"))
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            users,
+            "Users fetched successfully"
+        )
+    );
+
 });
 
+
 const searchVoices = asyncHandler(async (req, res) => {
+
     const { query } = req.query;
+
     if (!query || query.trim() === "") {
-    throw new ApiError(400, "Search query is required");
+        throw new ApiError(
+            400,
+            "Search query is required"
+        );
     }
 
 
     const voices = await Voice.aggregate([
+
         {
-            $match:{
-                isPublished:true,
-                $or:[
+            $match: {
+
+                isPublished: true,
+
+                $or: [
                     {
-                        title:{
-                            $regex:query,
-                            $options:"i"
+                        title: {
+                            $regex: query.trim(),
+                            $options: "i"
                         }
                     },
                     {
-                        description:{
-                            $regex:query,
-                            $options:"i"
+                        description: {
+                            $regex: query.trim(),
+                            $options: "i"
                         }
                     }
+
                 ]
+
             }
         },
+
         {
-            $lookup:{
-                from:"users",
-                localField:"owner",
-                foreignField:"_id",
-                as:"owner",
-                pipeline:[
+            $lookup: {
+
+                from: "users",
+
+                localField: "owner",
+
+                foreignField: "_id",
+
+                as: "owner",
+
+                pipeline: [
+
                     {
-                    $project:{
-                        fullname:1,
-                        username:1,
-                        avatar:1
+                        $project: {
+                            fullname: 1,
+                            username: 1,
+                            avatar: 1
+                        }
                     }
-                }
+
                 ]
+
             }
         },
+
+
         {
-            $addFields:{
-                owner:{
-                    $first:"$owner"
+            $addFields: {
+
+                owner: {
+                    $first: "$owner"
                 }
+
             }
         },
+
         {
-            $sort:{
-                createdAt:-1
+            $lookup: {
+
+                from: "likes",
+
+                localField: "_id",
+
+                foreignField: "voice",
+
+                as: "likes"
+
             }
+
         },
+
         {
-            $project:{
-                title:1,
-                description:1,
-                thumbnail:1,
-                voiceFile:1,
-                duration:1,
-                views:1,
-                createdAt:1,
-                owner:1
+            $addFields: {
+
+                likesCount: {
+                    $size: "$likes"
+                }
+
             }
+
+        },
+
+        {
+            $project: {
+
+                likes: 0
+
+            }
+
+        },
+
+        {
+            $sort: {
+
+                createdAt: -1
+
+            }
+
+        },
+
+        {
+            $project: {
+
+                _id: 1,
+
+                title: 1,
+
+                description: 1,
+
+                thumbnail: 1,
+
+                voiceFile: 1,
+
+                duration: 1,
+
+                views: 1,
+
+                likesCount: 1,
+
+                createdAt: 1,
+
+                owner: 1
+
+            }
+
         }
-    ])
-    return res.status(200).json(new ApiResponse(200,voices,"Voices fetched successfully"))
+
+    ]);
+
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            voices,
+            "Voices fetched successfully"
+        )
+    );
+
 });
+
 
 export {
     searchUsers,

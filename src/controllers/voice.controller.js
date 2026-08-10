@@ -6,7 +6,7 @@ import { Voice } from "../models/voice.model.js";
 import { isValidObjectId } from "mongoose";
 
 const publishVoice = asyncHandler(async (req, res) => {
-    const { title, description } = req.body;
+   const { title, description, isAnonymous } = req.body;
     const voiceFileLocalPath = req.files?.voiceFile?.[0]?.path;
     const thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
 
@@ -41,8 +41,14 @@ const voice = await Voice.create({
     voiceFile:voiceFile.url,
     thumbnail:thumbnail.url,
     owner:req.user._id,
-    duration:voiceFile.duration || 0
+    duration:voiceFile.duration || 0,
+    isAnonymous:
+            isAnonymous === true ||
+            isAnonymous === "true",
+
+        isPublished: true
 })
+
 
 return res.status(201).json(new ApiResponse(201,voice,"Voice uploaded Successfully"))
     

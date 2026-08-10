@@ -6,6 +6,7 @@ export const publishVoice = async ({
     description,
     voiceFile,
     thumbnail,
+    isAnonymous
 }) => {
     const formData = new FormData();
 
@@ -13,6 +14,7 @@ export const publishVoice = async ({
     formData.append("description", description);
     formData.append("voiceFile", voiceFile);
     formData.append("thumbnail", thumbnail);
+    formData.append("isAnonymous", isAnonymous);
 
     return apiClient("/voices/publish", {
         method: "POST",

@@ -407,7 +407,9 @@ export default function FeedPage() {
                 COMPOSE
             ========================= */}
 
-            <ComposeBox />
+            <ComposeBox
+             onPublished={() => fetchVoices(1)}
+             />
 
 
             {/* =========================

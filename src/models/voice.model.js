@@ -37,7 +37,11 @@ const voiceSchema = new Schema(
     isPublished:{
         type:Boolean,
         default:true
-    }
+    },
+    isAnonymous: {
+    type: Boolean,
+    default: false
+}
 },
 {
     timestamps:true
