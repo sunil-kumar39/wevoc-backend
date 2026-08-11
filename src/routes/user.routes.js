@@ -11,7 +11,8 @@ import {
     changeCurrentPassword,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    getSuggestedUsers
 } from "../controllers/user.controller.js";
 
 const router = Router();
@@ -55,5 +56,7 @@ router.route("/cover-image").patch(
     upload.single("coverImage"),
     updateUserCoverImage
 );
+
+router.route("/suggested").get(getSuggestedUsers);
 
 export default router;

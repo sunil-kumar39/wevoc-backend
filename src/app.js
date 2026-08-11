@@ -12,6 +12,8 @@ import dashboardRouter from "./routes/dashboard.routes.js";
 import searchRouter from "./routes/search.routes.js";
 import likeRouter from "./routes/like.routes.js";
 import notificationRouter from "./routes/notification.routes.js";
+import bookmarkRouter from "./routes/bookmark.routes.js";
+import messageRouter from "./routes/message.routes.js";
 
 const app = express();
 
@@ -45,5 +47,13 @@ app.use("/api/v1/history", historyRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/likes", likeRouter);
+app.use(
+    "/api/v1/bookmarks",
+    bookmarkRouter
+);
+app.use(
+    "/api/v1/messages",
+    messageRouter
+);
 
 export { app };

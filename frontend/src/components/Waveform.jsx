@@ -1,38 +1,81 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
-export function Waveform({ playing, bars = 30 }) {
-  const heights = useMemo(
-    () => Array.from({ length: bars }, () => Math.floor(Math.random() * 20) + 5),
-    []
-  );
-  const lit = Math.floor(bars * 0.35);
+export function Waveform({ playing = false, bars = 30 }) {
+    const heights = useMemo(() => {
+        const pattern = [
+            8, 14, 20, 11, 17, 24, 13, 19, 9, 22,
+            16, 12, 25, 15, 20, 10, 18, 23, 14, 8,
+            19, 12, 24, 16, 10, 21, 15, 18, 11, 20,
+        ];
 
-  return (
-    <div className="waveform-wrap">
-      {heights.map((h, i) => (
+        return Array.from(
+            { length: bars },
+            (_, index) => pattern[index % pattern.length]
+        );
+    }, [bars]);
+
+    const litBars = Math.floor(bars * 0.35);
+
+    return (
         <div
-          key={i}
-          className="wv-bar"
-          style={{
-            width: 3,
-            height: h,
-            opacity: playing && i < lit ? 1 : 0.25,
-            animation: playing
-              ? `lv-anim ${0.5 + (i % 5) * 0.12}s ease-in-out ${i * 0.03}s infinite`
-              : 'none',
-          }}
-        />
-      ))}
-    </div>
-  );
+            className="waveform-wrap"
+            aria-label={playing ? "Audio playing" : "Audio waveform"}
+        >
+            {heights.map((height, index) => {
+                const isLit =
+                    playing && index < litBars;
+
+                return (
+                    <div
+                        key={index}
+                        className="wv-bar"
+                        style={{
+                            width: 3,
+                            height,
+                            opacity: isLit ? 1 : 0.25,
+
+                            animation: playing
+                                ? `lv-anim ${
+                                      0.5 +
+                                      (index % 5) * 0.12
+                                  }s ease-in-out ${
+                                      index * 0.03
+                                  }s infinite`
+                                : "none",
+                        }}
+                    />
+                );
+            })}
+        </div>
+    );
 }
 
+
+/*
+ * Live recording waveform
+ *
+ * Used while microphone is recording.
+ */
 export function LiveBars({ count = 13 }) {
-  return (
-    <div className="live-wv">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="lv-bar" style={{ animationDelay: `${i * 0.07}s` }} />
-      ))}
-    </div>
-  );
+    return (
+        <div
+            className="live-wv"
+            aria-label="Recording audio"
+        >
+            {Array.from(
+                { length: count },
+                (_, index) => (
+                    <div
+                        key={index}
+                        className="lv-bar"
+                        style={{
+                            animationDelay: `${
+                                index * 0.07
+                            }s`,
+                        }}
+                    />
+                )
+            )}
+        </div>
+    );
 }

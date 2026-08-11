@@ -10,13 +10,8 @@ export default function Avatar({
             ? name[0].toUpperCase()
             : "?";
 
-
     const cls =
-        `avatar av-${size}${
-            onClick
-                ? " clickable"
-                : ""
-        }`;
+        `avatar av-${size}${onClick ? " clickable" : ""}`;
 
 
     return (
@@ -24,11 +19,11 @@ export default function Avatar({
         <div
             className={cls}
             onClick={onClick}
-            role={
-                onClick
-                    ? "button"
-                    : undefined
-            }
+            role={onClick ? "button" : undefined}
+            style={{
+                overflow: "hidden",
+                position: "relative",
+            }}
         >
 
             {src ? (
@@ -40,7 +35,7 @@ export default function Avatar({
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
-                        borderRadius: "50%",
+                        display: "block",
                     }}
                 />
 

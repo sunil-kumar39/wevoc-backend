@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 
 import Avatar from "./Avatar";
-import PostCard from "./PostCard";
 
-import { MoonIcon, SunIcon } from "./Icons";
+import {
+    MoonIcon,
+    SunIcon,
+} from "./Icons";
 
 import { useApp } from "../context/AppContext";
 
@@ -12,9 +14,17 @@ import {
     searchVoices,
 } from "../api/search.api";
 
-import { toggleFollow } from "../api/follow.api";
+import {
+    toggleFollow,
+} from "../api/follow.api";
 
-import { USERS } from "../data/mockData";
+import {
+    getAllVoices,
+} from "../api/voice.api";
+
+import {
+    getSuggestedUsers,
+} from "../api/user.api";
 
 
 export default function RightPanel() {
@@ -32,8 +42,13 @@ export default function RightPanel() {
     // STATE
     // =========================================
 
-    const [following, setFollowing] =
-        useState({});
+    const [following, setFollowing] = useState({});
+
+    const [suggestedUsers, setSuggestedUsers] =
+        useState([]);
+
+    const [trendingVoices, setTrendingVoices] =
+        useState([]);
 
     const [searchResults, setSearchResults] =
         useState([]);
@@ -47,9 +62,118 @@ export default function RightPanel() {
     const [searchError, setSearchError] =
         useState("");
 
+    const [panelLoading, setPanelLoading] =
+        useState(true);
+
 
     // =========================================
-    // SEARCH USERS + VOICES
+    // LOAD RIGHT PANEL DATA
+    // =========================================
+
+    useEffect(() => {
+
+        const loadRightPanel = async () => {
+
+            try {
+
+                setPanelLoading(true);
+
+
+                const [
+                    voicesResponse,
+                    suggestedResponse,
+                ] = await Promise.all([
+
+                    // Trending voices
+                    getAllVoices(1, 20),
+
+                    // People you may know
+                    getSuggestedUsers(),
+
+                ]);
+
+
+                // =================================
+                // TRENDING VOICES
+                // =================================
+
+                const voices =
+                    voicesResponse?.data?.voices || [];
+
+
+                const trending = [...voices]
+                    .sort((a, b) => {
+
+                        const scoreA =
+                            (a.likesCount || 0) * 3 +
+                            (a.views || 0);
+
+                        const scoreB =
+                            (b.likesCount || 0) * 3 +
+                            (b.views || 0);
+
+                        return scoreB - scoreA;
+
+                    })
+                    .slice(0, 5);
+
+
+                setTrendingVoices(trending);
+
+
+                // =================================
+                // PEOPLE YOU MAY KNOW
+                // =================================
+
+                const suggested =
+                    Array.isArray(
+                        suggestedResponse?.data
+                    )
+                        ? suggestedResponse.data
+                        : [];
+
+
+                const users = suggested
+                    .filter(Boolean)
+                    .filter(
+                        person =>
+                            String(person._id) !==
+                            String(user?._id)
+                    )
+                    .slice(0, 5);
+
+
+                setSuggestedUsers(users);
+
+
+            } catch (error) {
+
+                console.error(
+                    "Right panel loading error:",
+                    error
+                );
+
+                setSuggestedUsers([]);
+                setTrendingVoices([]);
+
+            } finally {
+
+                setPanelLoading(false);
+
+            }
+
+        };
+
+
+        if (user?._id) {
+            loadRightPanel();
+        }
+
+    }, [user?._id]);
+
+
+    // =========================================
+    // SEARCH
     // =========================================
 
     useEffect(() => {
@@ -57,10 +181,6 @@ export default function RightPanel() {
         const query =
             searchQuery.trim();
 
-
-        // -----------------------------------------
-        // No search
-        // -----------------------------------------
 
         if (query.length <= 1) {
 
@@ -73,106 +193,72 @@ export default function RightPanel() {
         }
 
 
-        // -----------------------------------------
-        // Debounce
-        // -----------------------------------------
+        const timer = setTimeout(
+            async () => {
 
-        const timer =
-            setTimeout(
-                async () => {
+                try {
 
-                    try {
-
-                        setSearchLoading(true);
-                        setSearchError("");
+                    setSearchLoading(true);
+                    setSearchError("");
 
 
-                        // Search users + voices together
-                        const [
-                            usersResponse,
-                            voicesResponse,
-                        ] = await Promise.all([
+                    const [
+                        usersResponse,
+                        voicesResponse,
+                    ] = await Promise.all([
 
-                            searchUsers(query),
+                        searchUsers(query),
+                        searchVoices(query),
 
-                            searchVoices(query),
-
-                        ]);
+                    ]);
 
 
-                        console.log(
-                            "RIGHT PANEL USERS:",
-                            usersResponse
-                        );
-
-                        console.log(
-                            "RIGHT PANEL VOICES:",
-                            voicesResponse
-                        );
+                    setSearchResults(
+                        Array.isArray(
+                            usersResponse?.data
+                        )
+                            ? usersResponse.data
+                            : []
+                    );
 
 
-                        // ---------------------------------
-                        // Users
-                        // ---------------------------------
-
-                        setSearchResults(
-
-                            Array.isArray(
-                                usersResponse?.data
-                            )
-                                ? usersResponse.data
-                                : []
-
-                        );
+                    setVoiceResults(
+                        Array.isArray(
+                            voicesResponse?.data
+                        )
+                            ? voicesResponse.data
+                            : []
+                    );
 
 
-                        // ---------------------------------
-                        // Voices
-                        // ---------------------------------
+                } catch (error) {
 
-                        setVoiceResults(
+                    console.error(
+                        "Right panel search error:",
+                        error
+                    );
 
-                            Array.isArray(
-                                voicesResponse?.data
-                            )
-                                ? voicesResponse.data
-                                : []
+                    setSearchError(
+                        error.message ||
+                        "Failed to search"
+                    );
 
-                        );
+                    setSearchResults([]);
+                    setVoiceResults([]);
 
+                } finally {
 
-                    } catch (error) {
+                    setSearchLoading(false);
 
-                        console.error(
-                            "Right panel search error:",
-                            error
-                        );
+                }
 
-
-                        setSearchError(
-                            error.message ||
-                            "Failed to search"
-                        );
-
-
-                        setSearchResults([]);
-                        setVoiceResults([]);
-
-
-                    } finally {
-
-                        setSearchLoading(false);
-
-                    }
-
-                },
-                400
-            );
+            },
+            400
+        );
 
 
         return () =>
             clearTimeout(timer);
-
 
     }, [searchQuery]);
 
@@ -181,73 +267,63 @@ export default function RightPanel() {
     // FOLLOW / UNFOLLOW
     // =========================================
 
-    const handleFollow =
-        async (targetUser) => {
+    const handleFollow = async (targetUser) => {
 
-            if (!targetUser?._id) {
-                return;
-            }
-
-
-            // Don't follow yourself
-            if (
-                user?._id &&
-                String(user._id) ===
-                String(targetUser._id)
-            ) {
-                return;
-            }
+        if (!targetUser?._id) {
+            return;
+        }
 
 
-            const userId =
-                targetUser._id;
+        if (
+            user?._id &&
+            String(user._id) ===
+            String(targetUser._id)
+        ) {
+            return;
+        }
 
 
-            try {
-
-                const response =
-                    await toggleFollow(userId);
+        const userId =
+            targetUser._id;
 
 
-                const message =
-                    response?.message || "";
+        try {
+
+            const response =
+                await toggleFollow(userId);
 
 
-                const nowFollowing =
-                    message
-                        .toLowerCase()
-                        .includes("followed");
+            const message =
+                response?.message || "";
 
 
-                setFollowing(
-                    (previous) => ({
-                        ...previous,
-
-                        [userId]:
-                            nowFollowing,
-                    })
-                );
+            const nowFollowing =
+                message
+                    .toLowerCase()
+                    .includes("followed");
 
 
-            } catch (error) {
+            setFollowing(previous => ({
+                ...previous,
+                [userId]: nowFollowing,
+            }));
 
-                console.error(
-                    "Follow error:",
-                    error
-                );
 
-            }
+        } catch (error) {
 
-        };
+            console.error(
+                "Follow error:",
+                error
+            );
+
+        }
+
+    };
 
 
     // =========================================
-    // DEFAULT SUGGESTIONS
+    // SEARCHING
     // =========================================
-
-    const defaultUsers =
-        USERS.slice(0, 5);
-
 
     const isSearching =
         searchQuery.trim().length > 1;
@@ -256,40 +332,39 @@ export default function RightPanel() {
     const shownUsers =
         isSearching
             ? searchResults
-            : defaultUsers;
+            : suggestedUsers;
 
 
     // =========================================
     // NORMALIZE USER
     // =========================================
 
-    const normalizeUser =
-        (rawUser) => {
+    const normalizeUser = (rawUser) => {
 
-            return {
+        return {
 
-                ...rawUser,
+            ...rawUser,
 
-                name:
-                    rawUser.fullname ||
-                    rawUser.name ||
-                    "Unknown User",
+            name:
+                rawUser?.fullname ||
+                rawUser?.name ||
+                "Unknown User",
 
-                username:
-                    rawUser.username ||
-                    "",
+            username:
+                rawUser?.username ||
+                "",
 
-                college:
-                    rawUser.college ||
-                    "",
+            college:
+                rawUser?.college ||
+                "",
 
-                avatar:
-                    rawUser.avatar ||
-                    undefined,
-
-            };
+            avatar:
+                rawUser?.avatar ||
+                undefined,
 
         };
+
+    };
 
 
     // =========================================
@@ -302,7 +377,7 @@ export default function RightPanel() {
 
 
             {/* =================================
-                THEME TOGGLE
+                THEME
             ================================= */}
 
             <button
@@ -347,25 +422,100 @@ export default function RightPanel() {
                     </div>
 
 
-                    <div
-                        style={{
-                            padding:
-                                "16px 20px",
+                    {panelLoading ? (
 
-                            fontSize: 14,
+                        <div
+                            style={{
+                                padding: "16px 20px",
+                                fontSize: 14,
+                                color: "var(--ink3)",
+                            }}
+                        >
+                            Loading trends...
+                        </div>
 
-                            color:
-                                "var(--ink3)",
+                    ) : trendingVoices.length === 0 ? (
 
-                            lineHeight: 1.6,
-                        }}
-                    >
+                        <div
+                            style={{
+                                padding: "16px 20px",
+                                fontSize: 14,
+                                color: "var(--ink3)",
+                            }}
+                        >
+                            No trending voices yet.
+                        </div>
 
-                        Explore trending
-                        voices from the
-                        campus.
+                    ) : (
 
-                    </div>
+                        trendingVoices.map(
+                            (voice, index) => (
+
+                                <div
+                                    key={voice._id}
+                                    className="rp-row"
+                                    onClick={() =>
+                                        navigate(
+                                            "user",
+                                            voice.owner
+                                        )
+                                    }
+                                    style={{
+                                        cursor: "pointer",
+                                    }}
+                                >
+
+                                    <div
+                                        style={{
+                                            width: 28,
+                                            fontSize: 13,
+                                            fontWeight: 800,
+                                            color: "var(--crimson)",
+                                        }}
+                                    >
+                                        #{index + 1}
+                                    </div>
+
+
+                                    <div
+                                        style={{
+                                            minWidth: 0,
+                                            flex: 1,
+                                        }}
+                                    >
+
+                                        <div
+                                            className="trend-tag"
+                                            style={{
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {voice.title}
+                                        </div>
+
+
+                                        <div className="trend-count">
+
+                                            ❤️{" "}
+                                            {voice.likesCount || 0}
+
+                                            {" · "}
+
+                                            👁{" "}
+                                            {voice.views || 0}
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            )
+                        )
+
+                    )}
 
                 </div>
 
@@ -373,15 +523,10 @@ export default function RightPanel() {
 
 
             {/* =================================
-                SEARCH / SUGGESTIONS BOX
+                PEOPLE / SEARCH
             ================================= */}
 
             <div className="rp-box">
-
-
-                {/* ---------------------------------
-                    TITLE
-                --------------------------------- */}
 
                 <div className="rp-box-title">
 
@@ -392,22 +537,16 @@ export default function RightPanel() {
                 </div>
 
 
-                {/* =================================
-                    SEARCH LOADING
-                ================================= */}
+                {/* SEARCH LOADING */}
 
                 {isSearching &&
                     searchLoading && (
 
                         <div
                             style={{
-                                padding:
-                                    "16px 20px",
-
+                                padding: "16px 20px",
                                 fontSize: 14,
-
-                                color:
-                                    "var(--ink3)",
+                                color: "var(--ink3)",
                             }}
                         >
                             Searching...
@@ -416,9 +555,7 @@ export default function RightPanel() {
                     )}
 
 
-                {/* =================================
-                    SEARCH ERROR
-                ================================= */}
+                {/* SEARCH ERROR */}
 
                 {isSearching &&
                     !searchLoading &&
@@ -426,13 +563,9 @@ export default function RightPanel() {
 
                         <div
                             style={{
-                                padding:
-                                    "16px 20px",
-
+                                padding: "16px 20px",
                                 fontSize: 14,
-
-                                color:
-                                    "var(--crimson)",
+                                color: "var(--crimson)",
                             }}
                         >
                             {searchError}
@@ -441,9 +574,7 @@ export default function RightPanel() {
                     )}
 
 
-                {/* =================================
-                    USERS
-                ================================= */}
+                {/* USERS */}
 
                 {!searchLoading &&
                     !searchError &&
@@ -470,7 +601,7 @@ export default function RightPanel() {
 
 
                             {shownUsers.map(
-                                (rawUser) => {
+                                rawUser => {
 
                                     const u =
                                         normalizeUser(
@@ -480,12 +611,8 @@ export default function RightPanel() {
 
                                     const isCurrentUser =
                                         user?._id &&
-                                        String(
-                                            user._id
-                                        ) ===
-                                        String(
-                                            u._id
-                                        );
+                                        String(user._id) ===
+                                        String(u._id);
 
 
                                     return (
@@ -502,9 +629,8 @@ export default function RightPanel() {
                                                 {/* Avatar */}
 
                                                 <Avatar
-                                                    name={
-                                                        u.name
-                                                    }
+                                                    name={u.name}
+                                                    src={u.avatar}
                                                     size="sm"
                                                     onClick={() =>
                                                         navigate(
@@ -515,13 +641,12 @@ export default function RightPanel() {
                                                 />
 
 
-                                                {/* User info */}
+                                                {/* User */}
 
                                                 <div
                                                     className="suggest-names"
                                                     style={{
-                                                        cursor:
-                                                            "pointer",
+                                                        cursor: "pointer",
                                                         minWidth: 0,
                                                     }}
                                                     onClick={() =>
@@ -532,17 +657,15 @@ export default function RightPanel() {
                                                     }
                                                 >
 
-                                                    <div
-                                                        className="suggest-name"
-                                                    >
+                                                    <div className="suggest-name">
                                                         {u.name}
                                                     </div>
 
 
-                                                    <div
-                                                        className="suggest-college"
-                                                    >
+                                                    <div className="suggest-college">
+
                                                         @{u.username}
+
                                                     </div>
 
                                                 </div>
@@ -591,9 +714,7 @@ export default function RightPanel() {
                     )}
 
 
-                {/* =================================
-                    VOICES
-                ================================= */}
+                {/* VOICES SEARCH */}
 
                 {isSearching &&
                     !searchLoading &&
@@ -606,11 +727,8 @@ export default function RightPanel() {
                                 style={{
                                     padding:
                                         "14px 20px 6px",
-
                                     fontSize: 12,
-
                                     fontWeight: 700,
-
                                     color:
                                         "var(--ink3)",
                                 }}
@@ -621,173 +739,123 @@ export default function RightPanel() {
 
                             {voiceResults
                                 .slice(0, 4)
-                                .map(
-                                    (voice) => (
+                                .map(voice => (
+
+                                    <div
+                                        key={voice._id}
+                                        className="rp-row"
+                                        style={{
+                                            cursor: "pointer",
+                                        }}
+                                        onClick={() =>
+                                            navigate(
+                                                "user",
+                                                voice.owner
+                                            )
+                                        }
+                                    >
+
+                                        {voice.thumbnail ? (
+
+                                            <img
+                                                src={
+                                                    voice.thumbnail
+                                                }
+                                                alt={
+                                                    voice.title
+                                                }
+                                                style={{
+                                                    width: 44,
+                                                    height: 44,
+                                                    borderRadius: 8,
+                                                    objectFit: "cover",
+                                                    flexShrink: 0,
+                                                }}
+                                            />
+
+                                        ) : (
+
+                                            <div
+                                                style={{
+                                                    width: 44,
+                                                    height: 44,
+                                                    borderRadius: 8,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    background:
+                                                        "var(--surface2)",
+                                                    flexShrink: 0,
+                                                }}
+                                            >
+                                                🎙
+                                            </div>
+
+                                        )}
+
 
                                         <div
-                                            key={
-                                                voice._id
-                                            }
-                                            className="rp-row"
+                                            style={{
+                                                minWidth: 0,
+                                                flex: 1,
+                                                marginLeft: 10,
+                                            }}
                                         >
 
                                             <div
                                                 style={{
-                                                    width:
-                                                        "100%",
-                                                    cursor:
-                                                        "pointer",
+                                                    fontSize: 14,
+                                                    fontWeight: 700,
+                                                    color:
+                                                        "var(--ink)",
+                                                    overflow: "hidden",
+                                                    textOverflow:
+                                                        "ellipsis",
+                                                    whiteSpace:
+                                                        "nowrap",
                                                 }}
-                                                onClick={() =>
-                                                    navigate(
-                                                        "user",
-                                                        voice.owner
-                                                    )
-                                                }
+                                            >
+                                                {voice.title}
+                                            </div>
+
+
+                                            <div
+                                                style={{
+                                                    fontSize: 12,
+                                                    color:
+                                                        "var(--ink3)",
+                                                    marginTop: 3,
+                                                }}
                                             >
 
-                                                <div
-                                                    style={{
-                                                        display:
-                                                            "flex",
-                                                        alignItems:
-                                                            "center",
-                                                        gap: 10,
-                                                    }}
-                                                >
+                                                @
+                                                {
+                                                    voice.owner
+                                                        ?.username
+                                                }
 
-                                                    {/* Thumbnail */}
+                                                {" · "}
 
-                                                    {voice.thumbnail ? (
-
-                                                        <img
-                                                            src={
-                                                                voice.thumbnail
-                                                            }
-                                                            alt={
-                                                                voice.title
-                                                            }
-                                                            style={{
-                                                                width:
-                                                                    44,
-                                                                height:
-                                                                    44,
-                                                                borderRadius:
-                                                                    8,
-                                                                objectFit:
-                                                                    "cover",
-                                                                flexShrink:
-                                                                    0,
-                                                            }}
-                                                        />
-
-                                                    ) : (
-
-                                                        <div
-                                                            style={{
-                                                                width:
-                                                                    44,
-                                                                height:
-                                                                    44,
-                                                                borderRadius:
-                                                                    8,
-                                                                display:
-                                                                    "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                background:
-                                                                    "var(--surface2)",
-                                                                flexShrink:
-                                                                    0,
-                                                            }}
-                                                        >
-                                                            🎙
-                                                        </div>
-
-                                                    )}
-
-
-                                                    {/* Voice info */}
-
-                                                    <div
-                                                        style={{
-                                                            minWidth:
-                                                                0,
-                                                            flex: 1,
-                                                        }}
-                                                    >
-
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    14,
-                                                                fontWeight:
-                                                                    700,
-                                                                color:
-                                                                    "var(--ink)",
-                                                                overflow:
-                                                                    "hidden",
-                                                                textOverflow:
-                                                                    "ellipsis",
-                                                                whiteSpace:
-                                                                    "nowrap",
-                                                            }}
-                                                        >
-                                                            {
-                                                                voice.title
-                                                            }
-                                                        </div>
-
-
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    12,
-                                                                color:
-                                                                    "var(--ink3)",
-                                                                marginTop:
-                                                                    3,
-                                                            }}
-                                                        >
-                                                            @
-                                                            {
-                                                                voice
-                                                                    .owner
-                                                                    ?.username
-                                                            }
-
-                                                            {" · "}
-
-                                                            ❤️
-                                                            {" "}
-                                                            {
-                                                                voice.likesCount ??
-                                                                0
-                                                            }
-
-                                                        </div>
-
-                                                    </div>
-
-                                                </div>
+                                                ❤️{" "}
+                                                {
+                                                    voice.likesCount ??
+                                                    0
+                                                }
 
                                             </div>
 
                                         </div>
 
-                                    )
-                                )}
+                                    </div>
+
+                                ))}
 
                         </>
 
                     )}
 
 
-                {/* =================================
-                    NO RESULTS
-                ================================= */}
+                {/* NO SEARCH RESULTS */}
 
                 {isSearching &&
                     !searchLoading &&
@@ -797,16 +865,10 @@ export default function RightPanel() {
 
                         <div
                             style={{
-                                padding:
-                                    "18px 20px",
-
+                                padding: "18px 20px",
                                 fontSize: 14,
-
-                                color:
-                                    "var(--ink3)",
-
-                                textAlign:
-                                    "center",
+                                color: "var(--ink3)",
+                                textAlign: "center",
                             }}
                         >
 
@@ -826,6 +888,24 @@ export default function RightPanel() {
                     )}
 
 
+                {/* NO PEOPLE */}
+
+                {!isSearching &&
+                    !panelLoading &&
+                    shownUsers.length === 0 && (
+
+                        <div
+                            style={{
+                                padding: "16px 20px",
+                                fontSize: 14,
+                                color: "var(--ink3)",
+                            }}
+                        >
+                            No people to show yet.
+                        </div>
+
+                    )}
+
             </div>
 
 
@@ -844,7 +924,6 @@ export default function RightPanel() {
                 WeVoc · Terms · Privacy ·
                 Campus Voice Platform © 2026
             </p>
-
 
         </aside>
 

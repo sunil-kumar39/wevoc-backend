@@ -7,9 +7,8 @@ import ComposeBox from "../components/ComposeBox";
 
 import { SearchIcon, FlameIcon } from "../components/Icons";
 
-import {
-    getAllVoices,
-} from "../api/voice.api";
+import { getAllVoices } from "../api/voice.api";
+import { getFollowing } from "../api/follow.api";
 
 
 export default function FeedPage() {
@@ -17,6 +16,7 @@ export default function FeedPage() {
     const {
         searchQuery,
         setSearchQuery,
+        user,
     } = useApp();
 
 
@@ -24,70 +24,50 @@ export default function FeedPage() {
     // STATES
     // =========================
 
-    const [tab, setTab] =
-        useState("trending");
+    const [tab, setTab] = useState("trending");
 
+    const [voices, setVoices] = useState([]);
 
-    const [voices, setVoices] =
-        useState([]);
+    const [followingUsers, setFollowingUsers] = useState([]);
 
+    const [loading, setLoading] = useState(true);
 
-    const [loading, setLoading] =
-        useState(true);
+    const [followingLoading, setFollowingLoading] = useState(false);
 
+    const [error, setError] = useState("");
 
-    const [error, setError] =
-        useState("");
+    const [page, setPage] = useState(1);
 
-
-    const [page, setPage] =
-        useState(1);
-
-
-    const [totalPages, setTotalPages] =
-        useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
 
     // =========================
     // FETCH VOICES
     // =========================
 
-    const fetchVoices = async (
-        pageNumber = 1
-    ) => {
+    const fetchVoices = async (pageNumber = 1) => {
 
         try {
 
             setLoading(true);
-
             setError("");
 
-
-            const response =
-                await getAllVoices(
-                    pageNumber,
-                    10
-                );
-
-
-            const data =
-                response?.data;
-
-
-            setVoices(
-                data?.voices || []
+            const response = await getAllVoices(
+                pageNumber,
+                10
             );
 
+            const data = response?.data;
+
+            setVoices(data?.voices || []);
 
             setPage(
                 data?.page || pageNumber
             );
 
-
             setTotalPages(
                 data?.totalPages || 1
             );
-
 
         } catch (error) {
 
@@ -95,7 +75,6 @@ export default function FeedPage() {
                 "Failed to fetch voices:",
                 error
             );
-
 
             setError(
                 error.message ||
@@ -105,6 +84,63 @@ export default function FeedPage() {
         } finally {
 
             setLoading(false);
+
+        }
+
+    };
+
+
+    // =========================
+    // FETCH FOLLOWING USERS
+    // =========================
+
+    const fetchFollowing = async () => {
+
+        if (!user?._id) return;
+
+        try {
+
+            setFollowingLoading(true);
+
+            const response =
+                await getFollowing(user._id);
+
+            const data = response?.data;
+
+            /*
+                Backend response:
+
+                data.following = [
+                    {
+                        following: {
+                            _id,
+                            fullname,
+                            username,
+                            avatar
+                        }
+                    }
+                ]
+            */
+
+            const users =
+                (data?.following || [])
+                    .map(item => item.following)
+                    .filter(Boolean);
+
+            setFollowingUsers(users);
+
+        } catch (error) {
+
+            console.error(
+                "Failed to fetch following users:",
+                error
+            );
+
+            setFollowingUsers([]);
+
+        } finally {
+
+            setFollowingLoading(false);
 
         }
 
@@ -123,126 +159,165 @@ export default function FeedPage() {
 
 
     // =========================
+    // LOAD FOLLOWING
+    // =========================
+
+    useEffect(() => {
+
+        if (user?._id) {
+            fetchFollowing();
+        }
+
+    }, [user?._id]);
+
+
+    // =========================
     // SEARCH
     // =========================
 
-    const filteredVoices =
-        useMemo(() => {
+    const filteredVoices = useMemo(() => {
 
-            if (!searchQuery.trim()) {
+        if (!searchQuery.trim()) {
+            return voices;
+        }
 
-                return voices;
+        const query =
+            searchQuery
+                .toLowerCase()
+                .trim();
 
-            }
+        return voices.filter((voice) => {
 
+            const title =
+                voice.title
+                    ?.toLowerCase() || "";
 
-            const query =
-                searchQuery
-                    .toLowerCase()
-                    .trim();
+            const description =
+                voice.description
+                    ?.toLowerCase() || "";
 
+            const username =
+                voice.owner?.username
+                    ?.toLowerCase() || "";
 
-            return voices.filter(
-                (voice) => {
+            const fullname =
+                voice.owner?.fullname
+                    ?.toLowerCase() || "";
 
-                    const title =
-                        voice.title
-                            ?.toLowerCase() ||
-                        "";
-
-
-                    const description =
-                        voice.description
-                            ?.toLowerCase() ||
-                        "";
-
-
-                    const username =
-                        voice.owner?.username
-                            ?.toLowerCase() ||
-                        "";
-
-
-                    const fullname =
-                        voice.owner?.fullname
-                            ?.toLowerCase() ||
-                        "";
-
-
-                    return (
-                        title.includes(query) ||
-                        description.includes(query) ||
-                        username.includes(query) ||
-                        fullname.includes(query)
-                    );
-
-                }
+            return (
+                title.includes(query) ||
+                description.includes(query) ||
+                username.includes(query) ||
+                fullname.includes(query)
             );
 
-        }, [
-            voices,
-            searchQuery,
-        ]);
+        });
+
+    }, [
+        voices,
+        searchQuery,
+    ]);
+
+
+    // =========================
+    // FOLLOWING VOICES
+    // =========================
+
+    const followingVoices = useMemo(() => {
+
+        if (!followingUsers.length) {
+            return [];
+        }
+
+        const followingIds =
+            new Set(
+                followingUsers.map(
+                    followingUser =>
+                        followingUser._id?.toString()
+                )
+            );
+
+        return filteredVoices.filter(
+            voice =>
+                voice.owner?._id &&
+                followingIds.has(
+                    voice.owner._id.toString()
+                )
+        );
+
+    }, [
+        filteredVoices,
+        followingUsers,
+    ]);
 
 
     // =========================
     // SORT
     // =========================
 
-    const sortedVoices =
-        useMemo(() => {
+    const sortedVoices = useMemo(() => {
 
-            const list =
-                [...filteredVoices];
+        let list = [];
 
+        // -------------------------
+        // FOLLOWING
+        // -------------------------
 
-            if (tab === "recent") {
+        if (tab === "following") {
 
-                return list.sort(
-                    (a, b) =>
-                        new Date(
-                            b.createdAt
-                        ) -
-                        new Date(
-                            a.createdAt
-                        )
-                );
+            list = [...followingVoices];
 
-            }
+            return list.sort(
+                (a, b) =>
+                    new Date(b.createdAt) -
+                    new Date(a.createdAt)
+            );
 
-
-            if (tab === "trending") {
-
-                return list.sort(
-                    (a, b) => {
-
-                        const scoreA =
-                            (a.likesCount || 0) * 3 +
-                            (a.views || 0);
+        }
 
 
-                        const scoreB =
-                            (b.likesCount || 0) * 3 +
-                            (b.views || 0);
+        // -------------------------
+        // RECENT
+        // -------------------------
+
+        if (tab === "recent") {
+
+            list = [...filteredVoices];
+
+            return list.sort(
+                (a, b) =>
+                    new Date(b.createdAt) -
+                    new Date(a.createdAt)
+            );
+
+        }
 
 
-                        return scoreB - scoreA;
+        // -------------------------
+        // TRENDING
+        // -------------------------
 
-                    }
-                );
+        list = [...filteredVoices];
 
-            }
+        return list.sort((a, b) => {
 
+            const scoreA =
+                (a.likesCount || 0) * 3 +
+                (a.views || 0);
 
-            // Following will be properly
-            // connected with Follow API later.
+            const scoreB =
+                (b.likesCount || 0) * 3 +
+                (b.views || 0);
 
-            return list;
+            return scoreB - scoreA;
 
-        }, [
-            filteredVoices,
-            tab,
-        ]);
+        });
+
+    }, [
+        filteredVoices,
+        followingVoices,
+        tab,
+    ]);
 
 
     // =========================
@@ -255,26 +330,22 @@ export default function FeedPage() {
     ) => {
 
         setVoices(
-            (currentVoices) =>
+            currentVoices =>
                 currentVoices.map(
-                    (voice) => {
+                    voice => {
 
                         if (
-                            voice._id !==
-                            voiceId
+                            voice._id !== voiceId
                         ) {
-
                             return voice;
-
                         }
-
 
                         const currentCount =
                             voice.likesCount || 0;
 
-
                         return {
                             ...voice,
+
                             likesCount: liked
                                 ? currentCount + 1
                                 : Math.max(
@@ -301,9 +372,7 @@ export default function FeedPage() {
             <div className="feed-page">
 
                 <div className="feed-loading">
-
                     Loading voices...
-
                 </div>
 
             </div>
@@ -313,17 +382,20 @@ export default function FeedPage() {
     }
 
 
+    // =========================
+    // RENDER
+    // =========================
+
     return (
 
         <div className="feed-page">
 
 
             {/* =========================
-                STICKY HEADER
+                HEADER
             ========================= */}
 
             <div className="feed-header">
-
 
                 <div className="feed-search">
 
@@ -348,6 +420,7 @@ export default function FeedPage() {
 
                 <div className="tab-strip">
 
+                    {/* TRENDING */}
 
                     <button
                         className={`tab-strip-btn${
@@ -367,6 +440,8 @@ export default function FeedPage() {
                     </button>
 
 
+                    {/* FOLLOWING */}
+
                     <button
                         className={`tab-strip-btn${
                             tab === "following"
@@ -382,6 +457,8 @@ export default function FeedPage() {
 
                     </button>
 
+
+                    {/* RECENT */}
 
                     <button
                         className={`tab-strip-btn${
@@ -408,8 +485,10 @@ export default function FeedPage() {
             ========================= */}
 
             <ComposeBox
-             onPublished={() => fetchVoices(1)}
-             />
+                onPublished={() =>
+                    fetchVoices(1)
+                }
+            />
 
 
             {/* =========================
@@ -428,9 +507,7 @@ export default function FeedPage() {
                             fetchVoices(1)
                         }
                     >
-
                         Retry
-
                     </button>
 
                 </div>
@@ -439,22 +516,57 @@ export default function FeedPage() {
 
 
             {/* =========================
+                FOLLOWING LOADING
+            ========================= */}
+
+            {tab === "following" &&
+                followingLoading && (
+
+                    <div className="feed-loading">
+                        Loading following...
+                    </div>
+
+                )
+            }
+
+
+            {/* =========================
                 EMPTY
             ========================= */}
 
             {!error &&
+                !followingLoading &&
                 sortedVoices.length === 0 && (
 
                     <div className="feed-empty">
 
-                        <h3>
-                            No voices found
-                        </h3>
+                        {tab === "following" ? (
 
-                        <p>
-                            Be the first person
-                            to share a voice.
-                        </p>
+                            <>
+                                <h3>
+                                    No voices from people you follow
+                                </h3>
+
+                                <p>
+                                    Follow some people to see
+                                    their voice posts here.
+                                </p>
+                            </>
+
+                        ) : (
+
+                            <>
+                                <h3>
+                                    No voices found
+                                </h3>
+
+                                <p>
+                                    Be the first person
+                                    to share a voice.
+                                </p>
+                            </>
+
+                        )}
 
                     </div>
 
@@ -467,6 +579,7 @@ export default function FeedPage() {
             ========================= */}
 
             {!error &&
+                !followingLoading &&
                 sortedVoices.map(
                     (voice, index) => (
 
@@ -492,10 +605,10 @@ export default function FeedPage() {
             ========================= */}
 
             {!error &&
+                tab !== "following" &&
                 totalPages > 1 && (
 
                     <div className="feed-pagination">
-
 
                         <button
                             className="btn"
@@ -508,17 +621,13 @@ export default function FeedPage() {
                                 )
                             }
                         >
-
                             Previous
-
                         </button>
 
 
                         <span>
-
                             Page {page} of{" "}
                             {totalPages}
-
                         </span>
 
 
@@ -534,9 +643,7 @@ export default function FeedPage() {
                                 )
                             }
                         >
-
                             Next
-
                         </button>
 
                     </div>

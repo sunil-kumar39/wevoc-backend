@@ -26,6 +26,11 @@ import {
     deleteComment,
 } from "../api/comment.api";
 
+import {
+    toggleBookmark,
+    checkBookmark,
+} from "../api/bookmark.api";
+
 import { timeAgo } from "../utils/helpers";
 
 
@@ -37,8 +42,6 @@ export default function PostCard({
 
     const {
         navigate,
-        bookmarks,
-        toggleBookmark,
         user,
     } = useApp();
 
@@ -86,18 +89,125 @@ export default function PostCard({
     const [playing, setPlaying] =
         useState(false);
 
-    const [audio] =
-        useState(() => {
+    const [audio, setAudio] =
+        useState(null);
 
-            if (!post?.voiceFile) {
-                return null;
+    const [currentTime, setCurrentTime] =
+        useState(0);
+
+    const [audioDuration, setAudioDuration] =
+        useState(0);
+
+
+    useEffect(() => {
+
+        if (!post?.voiceFile) {
+
+            setAudio(null);
+            setCurrentTime(0);
+            setAudioDuration(0);
+
+            return;
+        }
+
+
+        const audioElement =
+            new Audio(post.voiceFile);
+
+        audioElement.preload =
+            "metadata";
+
+
+        const handleLoadedMetadata = () => {
+
+            if (
+                Number.isFinite(
+                    audioElement.duration
+                )
+            ) {
+                setAudioDuration(
+                    audioElement.duration
+                );
             }
+        };
 
-            return new Audio(
-                post.voiceFile
+
+        const handleTimeUpdate = () => {
+
+            setCurrentTime(
+                audioElement.currentTime || 0
+            );
+        };
+
+
+        const handleEnded = () => {
+
+            setPlaying(false);
+            setCurrentTime(0);
+        };
+
+
+        const handleError = (error) => {
+
+            console.error(
+                "Audio loading error:",
+                error
             );
 
-        });
+            setPlaying(false);
+        };
+
+
+        audioElement.addEventListener(
+            "loadedmetadata",
+            handleLoadedMetadata
+        );
+
+        audioElement.addEventListener(
+            "timeupdate",
+            handleTimeUpdate
+        );
+
+        audioElement.addEventListener(
+            "ended",
+            handleEnded
+        );
+
+        audioElement.addEventListener(
+            "error",
+            handleError
+        );
+
+
+        setAudio(audioElement);
+
+
+        return () => {
+
+            audioElement.pause();
+
+            audioElement.removeEventListener(
+                "loadedmetadata",
+                handleLoadedMetadata
+            );
+
+            audioElement.removeEventListener(
+                "timeupdate",
+                handleTimeUpdate
+            );
+
+            audioElement.removeEventListener(
+                "ended",
+                handleEnded
+            );
+
+            audioElement.removeEventListener(
+                "error",
+                handleError
+            );
+        };
+
+    }, [post?.voiceFile]);
 
 
     // =========================
@@ -133,171 +243,213 @@ export default function PostCard({
     // BOOKMARK
     // =========================
 
-    const isBkd =
-        bookmarks.includes(post?._id);
+    const [isBkd, setIsBkd] =
+        useState(false);
+
+    const [bookmarkLoading, setBookmarkLoading] =
+        useState(false);
+
+
+    // Check bookmark status
+    // when card loads
+    useEffect(() => {
+
+        const loadBookmarkStatus =
+            async () => {
+
+                if (!post?._id) {
+                    return;
+                }
+
+
+                try {
+
+                    const response =
+                        await checkBookmark(
+                            post._id
+                        );
+
+
+                    setIsBkd(
+                        response?.data?.bookmarked === true
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "Bookmark status error:",
+                        error
+                    );
+                }
+            };
+
+
+        loadBookmarkStatus();
+
+    }, [post?._id]);
 
 
     // =========================
     // LOAD COMMENTS
     // =========================
 
-    const loadComments = async () => {
+    const loadComments =
+        async () => {
 
-        try {
+            try {
 
-            setCommentsLoading(true);
-            setCommentError("");
+                setCommentsLoading(true);
+                setCommentError("");
 
-            const response =
-                await getVoiceComments(
-                    post._id
+
+                const response =
+                    await getVoiceComments(
+                        post._id
+                    );
+
+
+                setComments(
+                    response?.data || []
                 );
 
-            setComments(
-                response?.data || []
-            );
+            } catch (error) {
 
-        } catch (error) {
+                console.error(
+                    "Comments error:",
+                    error
+                );
 
-            console.error(
-                "Comments error:",
-                error
-            );
 
-            setCommentError(
-                error.message ||
-                "Failed to load comments"
-            );
+                setCommentError(
+                    error.message ||
+                    "Failed to load comments"
+                );
 
-        } finally {
+            } finally {
 
-            setCommentsLoading(false);
-
-        }
-
-    };
+                setCommentsLoading(false);
+            }
+        };
 
 
     // =========================
     // OPEN COMMENTS
     // =========================
 
-    const handleReply = async (e) => {
+    const handleReply =
+        async (e) => {
 
-        e.stopPropagation();
+            e.stopPropagation();
 
-        const next =
-            !showComments;
 
-        setShowComments(next);
+            const next =
+                !showComments;
 
-        if (
-            next &&
-            comments.length === 0
-        ) {
-            await loadComments();
-        }
 
-    };
+            setShowComments(next);
+
+
+            if (
+                next &&
+                comments.length === 0
+            ) {
+
+                await loadComments();
+            }
+        };
 
 
     // =========================
     // ADD COMMENT
     // =========================
 
-    const handleAddComment = async (e) => {
+    const handleAddComment =
+        async (e) => {
 
-        e.preventDefault();
-        e.stopPropagation();
+            e.preventDefault();
+            e.stopPropagation();
 
-        const content =
-            commentText.trim();
 
-        if (!content) {
-            return;
-        }
+            const content =
+                commentText.trim();
 
-        try {
 
-            setCommentLoading(true);
-            setCommentError("");
-
-            const response =
-                await addComment(
-                    post._id,
-                    content
-                );
-
-            const newComment =
-                response?.data;
-
-            if (newComment) {
-
-                /*
-                 * Backend addComment currently
-                 * returns only the comment owner ID.
-                 *
-                 * So reload comments after adding
-                 * to get full owner information.
-                 */
-
-                setCommentText("");
-
-                await loadComments();
-
+            if (!content) {
+                return;
             }
 
-        } catch (error) {
 
-            console.error(
-                "Add comment error:",
-                error
-            );
+            try {
 
-            setCommentError(
-                error.message ||
-                "Failed to add comment"
-            );
+                setCommentLoading(true);
+                setCommentError("");
 
-        } finally {
 
-            setCommentLoading(false);
+                const response =
+                    await addComment(
+                        post._id,
+                        content
+                    );
 
-        }
 
-    };
+                const newComment =
+                    response?.data;
+
+
+                if (newComment) {
+
+                    setCommentText("");
+
+                    await loadComments();
+                }
+
+            } catch (error) {
+
+                console.error(
+                    "Add comment error:",
+                    error
+                );
+
+
+                setCommentError(
+                    error.message ||
+                    "Failed to add comment"
+                );
+
+            } finally {
+
+                setCommentLoading(false);
+            }
+        };
 
 
     // =========================
     // START EDIT
     // =========================
 
-    const startEdit = (
-        comment
-    ) => {
+    const startEdit =
+        (comment) => {
 
-        setEditingCommentId(
-            comment._id
-        );
+            setEditingCommentId(
+                comment._id
+            );
 
-        setEditText(
-            comment.content
-        );
-
-    };
+            setEditText(
+                comment.content
+            );
+        };
 
 
     // =========================
     // CANCEL EDIT
     // =========================
 
-    const cancelEdit = () => {
+    const cancelEdit =
+        () => {
 
-        setEditingCommentId(null);
-
-        setEditText("");
-
-    };
+            setEditingCommentId(null);
+            setEditText("");
+        };
 
 
     // =========================
@@ -310,22 +462,27 @@ export default function PostCard({
             const content =
                 editText.trim();
 
+
             if (!content) {
                 return;
             }
+
 
             try {
 
                 setCommentLoading(true);
                 setCommentError("");
 
+
                 await updateComment(
                     commentId,
                     content
                 );
 
+
                 setEditingCommentId(null);
                 setEditText("");
+
 
                 await loadComments();
 
@@ -336,6 +493,7 @@ export default function PostCard({
                     error
                 );
 
+
                 setCommentError(
                     error.message ||
                     "Failed to update comment"
@@ -344,9 +502,7 @@ export default function PostCard({
             } finally {
 
                 setCommentLoading(false);
-
             }
-
         };
 
 
@@ -362,18 +518,22 @@ export default function PostCard({
                     "Delete this comment?"
                 );
 
+
             if (!confirmed) {
                 return;
             }
+
 
             try {
 
                 setCommentLoading(true);
                 setCommentError("");
 
+
                 await deleteComment(
                     commentId
                 );
+
 
                 await loadComments();
 
@@ -384,6 +544,7 @@ export default function PostCard({
                     error
                 );
 
+
                 setCommentError(
                     error.message ||
                     "Failed to delete comment"
@@ -392,9 +553,7 @@ export default function PostCard({
             } finally {
 
                 setCommentLoading(false);
-
             }
-
         };
 
 
@@ -402,221 +561,274 @@ export default function PostCard({
     // LIKE VOICE
     // =========================
 
-    const handleLike = async (e) => {
+    const handleLike =
+        async (e) => {
 
-        e.stopPropagation();
-
-        if (likeLoading) {
-            return;
-        }
-
-        try {
-
-            setLikeLoading(true);
-
-            const response =
-                await toggleVoiceLike(
-                    post._id
-                );
-
-            const likedNow =
-                response?.data?.liked ??
-                response?.data?.isLiked ??
-                !liked;
-
-            setLiked(likedNow);
-
-            setLikeCount((count) => {
-
-                if (likedNow && !liked) {
-                    return count + 1;
-                }
-
-                if (!likedNow && liked) {
-                    return Math.max(
-                        0,
-                        count - 1
-                    );
-                }
-
-                return count;
-
-            });
-
-        } catch (error) {
-
-            console.error(
-                "Like error:",
-                error
-            );
-
-        } finally {
-
-            setLikeLoading(false);
-
-        }
-
-    };
+            e.stopPropagation();
 
 
-    // =========================
-    // AUDIO PLAY
-    // =========================
-
-    const handlePlay = async (e) => {
-
-        e.stopPropagation();
-
-        if (!audio) {
-            return;
-        }
-
-        try {
-
-            if (playing) {
-
-                audio.pause();
-
-                setPlaying(false);
-
-            } else {
-
-                await audio.play();
-
-                setPlaying(true);
-
-                audio.onended = () => {
-                    setPlaying(false);
-                };
-
+            if (likeLoading) {
+                return;
             }
 
-        } catch (error) {
 
-            console.error(
-                "Audio playback error:",
-                error
-            );
+            try {
 
-        }
+                setLikeLoading(true);
 
-    };
+
+                const response =
+                    await toggleVoiceLike(
+                        post._id
+                    );
+
+
+                const likedNow =
+                    response?.data?.liked ??
+                    response?.data?.isLiked ??
+                    !liked;
+
+
+                setLiked(likedNow);
+
+
+                setLikeCount(
+                    (count) => {
+
+                        if (
+                            likedNow &&
+                            !liked
+                        ) {
+                            return count + 1;
+                        }
+
+
+                        if (
+                            !likedNow &&
+                            liked
+                        ) {
+                            return Math.max(
+                                0,
+                                count - 1
+                            );
+                        }
+
+
+                        return count;
+                    }
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "Like error:",
+                    error
+                );
+
+            } finally {
+
+                setLikeLoading(false);
+            }
+        };
+
+
+    // =========================
+    // AUDIO PLAY / PAUSE
+    // =========================
+
+    const handlePlay =
+        async (e) => {
+
+            e.stopPropagation();
+
+
+            if (!audio) {
+                return;
+            }
+
+
+            try {
+
+                if (playing) {
+
+                    audio.pause();
+
+                    setPlaying(false);
+
+                } else {
+
+                    await audio.play();
+
+                    setPlaying(true);
+                }
+
+            } catch (error) {
+
+                console.error(
+                    "Audio playback error:",
+                    error
+                );
+
+                setPlaying(false);
+            }
+        };
 
 
     // =========================
     // BOOKMARK
     // =========================
 
-    const handleBookmark = (e) => {
+    const handleBookmark =
+        async (e) => {
 
-        e.stopPropagation();
+            e.stopPropagation();
 
-        toggleBookmark(
-            post._id
-        );
 
-    };
+            if (bookmarkLoading) {
+                return;
+            }
+
+
+            try {
+
+                setBookmarkLoading(true);
+
+
+                const response =
+                    await toggleBookmark(
+                        post._id
+                    );
+
+
+                const bookmarkedNow =
+                    response?.data?.bookmarked;
+
+
+                setIsBkd(
+                    bookmarkedNow === true
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "Bookmark error:",
+                    error
+                );
+
+            } finally {
+
+                setBookmarkLoading(false);
+            }
+        };
 
 
     // =========================
     // USER PROFILE
     // =========================
 
-    const goUser = (e) => {
+    const goUser =
+        (e) => {
 
-        e.stopPropagation();
+            e.stopPropagation();
 
-        if (!isAnon && author) {
 
-            navigate(
-                "user",
+            if (
+                !isAnon &&
                 author
-            );
+            ) {
 
-        }
-
-    };
+                navigate(
+                    "user",
+                    author
+                );
+            }
+        };
 
 
     // =========================
     // SHARE
     // =========================
 
-    const handleShare = async (e) => {
+    const handleShare =
+        async (e) => {
 
-        e.stopPropagation();
+            e.stopPropagation();
 
-        try {
 
-            const url =
-                `${window.location.origin}/voice/${post._id}`;
+            try {
 
-            if (navigator.share) {
+                const url =
+                    `${window.location.origin}/voice/${post._id}`;
 
-                await navigator.share({
-                    title:
-                        post.title ||
-                        "WeVoc Voice",
 
-                    text:
-                        post.description ||
-                        "Check out this voice on WeVoc",
+                if (navigator.share) {
 
-                    url,
-                });
+                    await navigator.share({
+                        title:
+                            post.title ||
+                            "WeVoc Voice",
 
-            } else {
+                        text:
+                            post.description ||
+                            "Check out this voice on WeVoc",
 
-                await navigator.clipboard
-                    .writeText(url);
+                        url,
+                    });
 
-                alert(
-                    "Voice link copied!"
+                } else {
+
+                    await navigator.clipboard
+                        .writeText(url);
+
+
+                    alert(
+                        "Voice link copied!"
+                    );
+                }
+
+            } catch (error) {
+
+                console.log(
+                    "Share cancelled"
                 );
+            }
+        };
 
+
+    // =========================
+    // FORMAT DURATION
+    // =========================
+
+    const formatDuration =
+        (seconds) => {
+
+            if (
+                seconds === undefined ||
+                seconds === null ||
+                isNaN(seconds) ||
+                !Number.isFinite(seconds)
+            ) {
+
+                return "0:00";
             }
 
-        } catch (error) {
 
-            console.log(
-                "Share cancelled"
-            );
-
-        }
-
-    };
+            const mins =
+                Math.floor(
+                    seconds / 60
+                );
 
 
-    // =========================
-    // DURATION
-    // =========================
+            const secs =
+                Math.floor(
+                    seconds % 60
+                );
 
-    const formatDuration = (
-        seconds
-    ) => {
 
-        if (
-            !seconds ||
-            isNaN(seconds)
-        ) {
-            return "0:00";
-        }
-
-        const mins =
-            Math.floor(
-                seconds / 60
-            );
-
-        const secs =
-            Math.floor(
-                seconds % 60
-            );
-
-        return `${mins}:${secs
-            .toString()
-            .padStart(2, "0")}`;
-
-    };
+            return `${mins}:${secs
+                .toString()
+                .padStart(2, "0")}`;
+        };
 
 
     // =========================
@@ -644,6 +856,10 @@ export default function PostCard({
             likeCount * 5
         );
 
+
+    // =========================
+    // RENDER
+    // =========================
 
     return (
 
@@ -687,7 +903,9 @@ export default function PostCard({
             <div className="post-body-col">
 
 
-                {/* HEADER */}
+                {/* =========================
+                    HEADER
+                ========================= */}
 
                 <div className="post-header">
 
@@ -714,9 +932,11 @@ export default function PostCard({
                                     {displayName}
                                 </span>
 
+
                                 <span className="post-handle">
                                     {displayHandle}
                                 </span>
+
 
                                 <span className="post-sep">
                                     ·
@@ -726,13 +946,15 @@ export default function PostCard({
 
                         )}
 
+
                         <span className="post-time">
 
                             {post?.createdAt
                                 ? timeAgo(
                                     post.createdAt
                                 )
-                                : ""}
+                                : ""
+                            }
 
                         </span>
 
@@ -751,24 +973,24 @@ export default function PostCard({
                 </div>
 
 
-                {/* TITLE */}
+                {/* =========================
+                    TITLE
+                ========================= */}
 
                 {post?.title && (
 
-                    <h3
-                        className="post-title"
-                        style={{
-                            margin:
-                                "4px 0 6px",
-                        }}
-                    >
+                    <div className="post-title-box">
+
                         {post.title}
-                    </h3>
+
+                    </div>
 
                 )}
 
 
-                {/* DESCRIPTION */}
+                {/* =========================
+                    DESCRIPTION
+                ========================= */}
 
                 {post?.description && (
 
@@ -781,18 +1003,22 @@ export default function PostCard({
                 )}
 
 
-                {/* AUDIO */}
+                {/* =========================
+                    AUDIO
+                ========================= */}
 
                 <div className="audio-player">
 
                     <button
                         className="play-btn"
                         onClick={handlePlay}
+                        disabled={!audio}
                     >
 
                         {playing
                             ? <PauseIcon />
-                            : <PlayIcon />}
+                            : <PlayIcon />
+                        }
 
                     </button>
 
@@ -805,6 +1031,13 @@ export default function PostCard({
                     <span className="audio-dur">
 
                         {formatDuration(
+                            currentTime
+                        )}
+
+                        {" / "}
+
+                        {formatDuration(
+                            audioDuration ||
                             post?.duration
                         )}
 
@@ -813,7 +1046,9 @@ export default function PostCard({
                 </div>
 
 
-                {/* ACTIONS */}
+                {/* =========================
+                    ACTIONS
+                ========================= */}
 
                 <div className="post-actions">
 
@@ -832,6 +1067,7 @@ export default function PostCard({
                             <ReplyIcon />
 
                         </span>
+
 
                         <span className="act-num">
 
@@ -862,9 +1098,11 @@ export default function PostCard({
 
                             {liked
                                 ? <HeartIcon />
-                                : <HeartOutlineIcon />}
+                                : <HeartOutlineIcon />
+                            }
 
                         </span>
+
 
                         <span className="act-num">
 
@@ -886,11 +1124,47 @@ export default function PostCard({
                         onClick={
                             handleBookmark
                         }
+                        disabled={
+                            bookmarkLoading
+                        }
+                        title={
+                            isBkd
+                                ? "Remove bookmark"
+                                : "Save voice"
+                        }
+                        style={{
+                            color:
+                                isBkd
+                                    ? "var(--crimson)"
+                                    : "var(--ink3)",
+                            transition:
+                                "all 0.2s ease",
+                        }}
                     >
 
-                        <span className="act-ico">
+                        <span
+                            className="act-ico"
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent:
+                                    "center",
+                            }}
+                        >
 
-                            <BookmarkIcon />
+                            <BookmarkIcon
+                                fill={
+                                    isBkd
+                                        ? "currentColor"
+                                        : "none"
+                                }
+                                stroke="currentColor"
+                                strokeWidth={
+                                    isBkd
+                                        ? "1.6"
+                                        : "1.8"
+                                }
+                            />
 
                         </span>
 
@@ -947,11 +1221,9 @@ export default function PostCard({
                                 handleAddComment
                             }
                             style={{
-                                display:
-                                    "flex",
+                                display: "flex",
                                 gap: 8,
-                                marginBottom:
-                                    12,
+                                marginBottom: 12,
                             }}
                         >
 
@@ -972,6 +1244,7 @@ export default function PostCard({
                                 }
                             />
 
+
                             <button
                                 type="submit"
                                 className="btn btn-primary btn-sm"
@@ -980,9 +1253,12 @@ export default function PostCard({
                                     !commentText.trim()
                                 }
                             >
+
                                 {commentLoading
                                     ? "..."
-                                    : "Send"}
+                                    : "Send"
+                                }
+
                             </button>
 
                         </form>
@@ -995,8 +1271,7 @@ export default function PostCard({
                             <div
                                 className="auth-error"
                                 style={{
-                                    marginBottom:
-                                        10,
+                                    marginBottom: 10,
                                 }}
                             >
                                 {commentError}
@@ -1056,7 +1331,8 @@ export default function PostCard({
                                         commentOwner?._id &&
                                         String(
                                             user._id
-                                        ) === String(
+                                        ) ===
+                                        String(
                                             commentOwner._id
                                         );
 
@@ -1115,11 +1391,14 @@ export default function PostCard({
                                                     <div>
 
                                                         <strong>
+
                                                             {
                                                                 commentOwner?.fullname ||
                                                                 "Unknown User"
                                                             }
+
                                                         </strong>
+
 
                                                         <span
                                                             style={{
@@ -1164,6 +1443,7 @@ export default function PostCard({
                                                             >
                                                                 Edit
                                                             </button>
+
 
                                                             <button
                                                                 type="button"
@@ -1212,6 +1492,7 @@ export default function PostCard({
                                                             }
                                                         />
 
+
                                                         <button
                                                             type="button"
                                                             className="btn btn-primary btn-sm"
@@ -1227,6 +1508,7 @@ export default function PostCard({
                                                         >
                                                             Save
                                                         </button>
+
 
                                                         <button
                                                             type="button"
@@ -1266,11 +1548,14 @@ export default function PostCard({
                                                             4,
                                                     }}
                                                 >
+
                                                     {comment.createdAt
                                                         ? timeAgo(
                                                             comment.createdAt
                                                         )
-                                                        : ""}
+                                                        : ""
+                                                    }
+
                                                 </div>
 
                                             </div>
@@ -1289,7 +1574,5 @@ export default function PostCard({
             </div>
 
         </article>
-
     );
-
 }

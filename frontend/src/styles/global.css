@@ -665,7 +665,13 @@ body {
   box-shadow: 0 12px 30px rgba(192,57,43,0.12);
 }
 
-.compose-row { display: flex; gap: 16px; align-items: center; position: relative; z-index: 1; }
+.compose-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  position: relative;
+  z-index: 1;
+}
 .compose-row .avatar.av-md { align-self: center; margin: 0; }
 .compose-right { flex: 1; min-width: 0; }
 .compose-textarea {
@@ -1818,3 +1824,97 @@ textarea.field { resize: none; line-height: 1.55; }
     display: block;
     object-fit: cover;
 }
+
+
+/* ===== CREATE VOICE FIX ===== */
+
+.compose-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--bg4);
+}
+
+.compose-header strong {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.compose-header span {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink3);
+}
+
+.compose-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.compose-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.compose-title-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+
+  border: 1px solid var(--bg4);
+  border-radius: 12px;
+  outline: none;
+
+  background: var(--bg2);
+  color: var(--ink);
+
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.compose-title-input::placeholder {
+  color: var(--ink4);
+  font-weight: 500;
+}
+
+.compose-title-input:focus {
+  border-color: var(--crimson);
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.08);
+}
+
+.compose-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  height: 72px;
+  margin-bottom: 10px;
+
+  padding: 13px 14px;
+  border: 1px solid var(--bg4);
+  border-radius: 12px;
+
+  background: var(--bg2);
+  color: var(--ink);
+
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.compose-textarea:focus {
+  border-color: var(--crimson);
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.08);
+}
+
+
