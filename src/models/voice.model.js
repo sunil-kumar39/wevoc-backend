@@ -30,6 +30,11 @@ const voiceSchema = new Schema(
         ref:"User",
         required:true
     },
+    community: {
+    type: Schema.Types.ObjectId,
+    ref: "Community",
+    default: null,
+},
     views:{
         type:Number,
         default:0

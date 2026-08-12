@@ -15,6 +15,7 @@ import notificationRouter from "./routes/notification.routes.js";
 import bookmarkRouter from "./routes/bookmark.routes.js";
 import messageRouter from "./routes/message.routes.js";
 import adminRouter from "./routes/admin.routes.js";
+import communityRouter from "./routes/community.routes.js";
 
 const app = express();
 
@@ -57,5 +58,9 @@ app.use(
     messageRouter
 );
 app.use("/api/v1/admin", adminRouter);
+app.use(
+    "/api/v1/communities",
+    communityRouter
+);
 
 export { app };
