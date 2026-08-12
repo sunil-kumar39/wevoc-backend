@@ -16,54 +16,73 @@ import DmsPage from "./pages/DmsPage";
 import FriendsPage from "./pages/FriendsPage";
 import BookmarksPage from "./pages/BookmarksPage";
 import CommunitiesPage from "./pages/CommunitiesPage";
+import AdminPage from "./pages/AdminPage";
 
 
-// -------------------------
-// Page Renderer
-// -------------------------
+// ==========================================
+// PAGE RENDERER
+// ==========================================
 
 function PageRenderer() {
+
     const { page } = useApp();
 
     const map = {
+
         feed: <FeedPage />,
+
         profile: <ProfilePage />,
+
         user: <UserProfilePage />,
+
         explore: <ExplorePage />,
+
         notifs: <NotificationsPage />,
+
         dms: <DmsPage />,
+
         friends: <FriendsPage />,
+
         bookmarks: <BookmarksPage />,
+
         communities: <CommunitiesPage />,
+
     };
 
     return map[page] ?? <FeedPage />;
 }
 
 
-// -------------------------
-// Pages without Right Panel
-// -------------------------
+// ==========================================
+// PAGES WITHOUT RIGHT PANEL
+// ==========================================
 
-const NO_RIGHT = ["dms"];
+const NO_RIGHT = [
+    "dms",
+];
 
 
-// -------------------------
-// App
-// -------------------------
+// ==========================================
+// APP
+// ==========================================
 
 export default function App() {
+
     return (
+
         <AppProvider>
+
             <AppShell />
+
         </AppProvider>
+
     );
 }
 
 
-// -------------------------
-// App Shell
-// -------------------------
+// ==========================================
+// APP SHELL
+// ==========================================
 
 function AppShell() {
 
@@ -74,75 +93,148 @@ function AppShell() {
         theme,
     } = useApp();
 
-    const [authPage, setAuthPage] = useState("login");
+
+    const [authPage, setAuthPage] =
+        useState("login");
 
 
-    // -------------------------
-    // Theme
-    // -------------------------
+    // ======================================
+    // THEME
+    // ======================================
 
     useEffect(() => {
+
         document.body.classList.toggle(
             "dark",
             theme === "dark"
         );
+
     }, [theme]);
 
 
-    // -------------------------
-    // Authentication Loading
-    // -------------------------
+    // ======================================
+    // AUTH LOADING
+    // ======================================
 
     if (authLoading) {
+
         return (
+
             <div className="auth-loading">
                 Loading...
             </div>
+
         );
+
     }
 
 
-    // -------------------------
-    // User Not Logged In
-    // -------------------------
+    // ======================================
+    // NOT LOGGED IN
+    // ======================================
 
     if (!user) {
 
         if (authPage === "register") {
+
             return (
+
                 <RegisterPage
-                    onLogin={() => setAuthPage("login")}
+                    onLogin={() =>
+                        setAuthPage("login")
+                    }
                 />
+
             );
+
         }
 
         return (
+
             <LoginPage
-                onRegister={() => setAuthPage("register")}
+                onRegister={() =>
+                    setAuthPage("register")
+                }
             />
+
         );
+
     }
 
 
-    // -------------------------
-    // Logged In User
-    // -------------------------
+    // ======================================
+    // ADMIN
+    // ======================================
 
-    const showRight = !NO_RIGHT.includes(page);
+    /*
+       IMPORTANT:
+
+       Admin ko normal app-shell ke andar
+       render nahi karna.
+
+       Isse admin ko full viewport milega.
+    */
+
+    if (page === "admin") {
+
+        if (user.role !== "admin") {
+
+            return (
+
+                <div className="admin-denied">
+
+                    <div className="admin-denied-icon">
+                        🔒
+                    </div>
+
+                    <h2>
+                        Access Denied
+                    </h2>
+
+                    <p>
+                        You don't have permission
+                        to access the admin panel.
+                    </p>
+
+                </div>
+
+            );
+
+        }
+
+        return <AdminPage />;
+
+    }
+
+
+    // ======================================
+    // NORMAL APP
+    // ======================================
+
+    const showRight =
+        !NO_RIGHT.includes(page);
 
 
     return (
+
         <div className="app-shell">
 
             <Sidebar />
 
+
             <main className="main-feed">
+
                 <PageRenderer />
+
             </main>
 
-            {showRight && <RightPanel />}
+
+            {showRight && (
+                <RightPanel />
+            )}
 
         </div>
-    );
-}
 
+    );
+
+}

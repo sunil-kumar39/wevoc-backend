@@ -14,6 +14,7 @@ import likeRouter from "./routes/like.routes.js";
 import notificationRouter from "./routes/notification.routes.js";
 import bookmarkRouter from "./routes/bookmark.routes.js";
 import messageRouter from "./routes/message.routes.js";
+import adminRouter from "./routes/admin.routes.js";
 
 const app = express();
 
@@ -55,5 +56,6 @@ app.use(
     "/api/v1/messages",
     messageRouter
 );
+app.use("/api/v1/admin", adminRouter);
 
 export { app };

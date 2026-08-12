@@ -107,71 +107,94 @@ export default function Sidebar() {
 
 
             {/* =========================
-                NAVIGATION
-            ========================= */}
+    NAVIGATION
+========================= */}
 
-            <nav>
+<nav>
 
-                <ul className="nav-list">
+    <ul className="nav-list">
 
-                    {NAV_ITEMS.map(
-                        (item) => {
+        {NAV_ITEMS.map(
+            (item) => {
 
-                            const Icon =
-                                item.icon;
-
-
-                            return (
-
-                                <li
-                                    key={
-                                        item.id
-                                    }
-                                    className="nav-item"
-                                >
-
-                                    <button
-                                        className={`nav-btn${
-                                            page ===
-                                            item.id
-                                                ? " active"
-                                                : ""
-                                        }`}
-                                        onClick={() =>
-                                            navTo(
-                                                item.id
-                                            )
-                                        }
-                                    >
-
-                                        <span className="nav-btn-icon">
-
-                                            <Icon />
-
-                                        </span>
+                const Icon =
+                    item.icon;
 
 
-                                        <span className="nav-btn-label">
+                return (
 
-                                            {
-                                                item.label
-                                            }
+                    <li
+                        key={item.id}
+                        className="nav-item"
+                    >
 
-                                        </span>
+                        <button
+                            className={`nav-btn${
+                                page === item.id
+                                    ? " active"
+                                    : ""
+                            }`}
+                            onClick={() =>
+                                navTo(item.id)
+                            }
+                        >
 
-                                    </button>
+                            <span className="nav-btn-icon">
+                                <Icon />
+                            </span>
 
-                                </li>
 
-                            );
+                            <span className="nav-btn-label">
+                                {item.label}
+                            </span>
 
-                        }
-                    )}
+                        </button>
 
-                </ul>
+                    </li>
 
-            </nav>
+                );
 
+            }
+        )}
+
+
+        {/* =========================
+            ADMIN PANEL
+        ========================= */}
+
+        {user?.role === "admin" && (
+
+            <li className="nav-item">
+
+                <button
+                    className={`nav-btn${
+                        page === "admin"
+                            ? " active"
+                            : ""
+                    }`}
+                    onClick={() =>
+                        navTo("admin")
+                    }
+                >
+
+                    <span className="nav-btn-icon">
+                        ⚙️
+                    </span>
+
+
+                    <span className="nav-btn-label">
+                        Admin Panel
+                    </span>
+
+                </button>
+
+            </li>
+
+        )}
+
+    </ul>
+
+</nav>
 
             {/* =========================
                 NEW VOICE
