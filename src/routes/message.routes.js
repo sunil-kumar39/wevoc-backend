@@ -8,19 +8,22 @@ import {
     getConversations,
     getMessagesWithUser,
     getUnreadMessageCount,
+    markMessagesAsRead,
 } from "../controllers/message.controller.js";
-
 
 const router = Router();
 
 
-// Everything below requires login
+// ==========================================
+// ALL MESSAGE ROUTES REQUIRE LOGIN
+// ==========================================
+
 router.use(verifyJWT);
 
 
-// ======================================
-// Conversations
-// ======================================
+// ==========================================
+// CONVERSATIONS
+// ==========================================
 
 router.get(
     "/conversations",
@@ -28,9 +31,9 @@ router.get(
 );
 
 
-// ======================================
-// Unread count
-// ======================================
+// ==========================================
+// UNREAD COUNT
+// ==========================================
 
 router.get(
     "/unread-count",
@@ -38,9 +41,19 @@ router.get(
 );
 
 
-// ======================================
-// Messages with specific user
-// ======================================
+// ==========================================
+// MARK MESSAGES AS READ
+// ==========================================
+
+router.patch(
+    "/read/:userId",
+    markMessagesAsRead
+);
+
+
+// ==========================================
+// GET MESSAGES WITH USER
+// ==========================================
 
 router.get(
     "/:userId",
@@ -48,9 +61,9 @@ router.get(
 );
 
 
-// ======================================
-// Send voice message
-// ======================================
+// ==========================================
+// SEND VOICE MESSAGE
+// ==========================================
 
 router.post(
     "/:receiverId",

@@ -1,30 +1,36 @@
 import { Router } from "express";
 
 import { verifyJWT } from "../middleware/auth.middleware.js";
-import { upload } from "../middleware/multer.middleware.js";
 
 import {
     publishVoice,
     getAllVoices,
+    getCommunityVoices,
     getVoiceById,
     updateVoice,
-    deleteVoice,
+    deleteVoice
 } from "../controllers/voice.controller.js";
+
+import { upload } from "../middleware/multer.middleware.js";
+
 
 const router = Router();
 
 
-// Public routes
-router.route("/")
-    .get(getAllVoices);
+// ========================================
+// ALL VOICE ROUTES REQUIRE LOGIN
+// ========================================
 
-router.route("/:voiceId")
-    .get(getVoiceById);
+router.use(verifyJWT);
 
 
-// Protected routes
-router.route("/publish").post(
-    verifyJWT,
+// ========================================
+// PUBLISH VOICE
+// ========================================
+
+router.post(
+    "/publish",
+
     upload.fields([
         {
             name: "voiceFile",
@@ -35,18 +41,64 @@ router.route("/publish").post(
             maxCount: 1
         }
     ]),
+
     publishVoice
 );
 
-router.route("/:voiceId").patch(
-    verifyJWT,
+
+// ========================================
+// ALL VOICES
+// ========================================
+
+router.get(
+    "/",
+    getAllVoices
+);
+
+
+// ========================================
+// COMMUNITY VOICES
+// IMPORTANT: this must come BEFORE /:voiceId
+// ========================================
+
+router.get(
+    "/community/:communityId",
+    getCommunityVoices
+);
+
+
+// ========================================
+// SINGLE VOICE
+// ========================================
+
+router.get(
+    "/:voiceId",
+    getVoiceById
+);
+
+
+// ========================================
+// UPDATE VOICE
+// ========================================
+
+router.patch(
+    "/:voiceId",
+
     upload.single("thumbnail"),
+
     updateVoice
 );
 
-router.route("/:voiceId").delete(
-    verifyJWT,
+
+// ========================================
+// DELETE VOICE
+// ========================================
+
+router.delete(
+    "/:voiceId",
+
     deleteVoice
 );
+
 
 export default router;

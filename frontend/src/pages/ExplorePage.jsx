@@ -14,7 +14,9 @@ import {
 
 export default function ExplorePage() {
 
-    const { navigate } = useApp();
+    const {
+        navigate
+    } = useApp();
 
 
     const [search, setSearch] =
@@ -101,10 +103,9 @@ export default function ExplorePage() {
 
 
                         setError(
-                            error.message ||
+                            error?.message ||
                             "Search failed"
                         );
-
 
                     } finally {
 
@@ -120,9 +121,83 @@ export default function ExplorePage() {
         return () =>
             clearTimeout(timer);
 
-
     }, [search]);
 
+
+    // =========================
+    // LIKE CHANGE
+    // =========================
+
+    const handleLikeChange = (
+        voiceId,
+        liked,
+        likesCount
+    ) => {
+
+        setVoices(
+            currentVoices =>
+
+                currentVoices.map(
+                    voice => {
+
+                        if (
+                            voice._id !== voiceId
+                        ) {
+
+                            return voice;
+
+                        }
+
+
+                        if (
+                            typeof likesCount ===
+                            "number"
+                        ) {
+
+                            return {
+                                ...voice,
+                                isLiked: liked,
+                                likesCount:
+                                    Math.max(
+                                        0,
+                                        likesCount
+                                    ),
+                            };
+
+                        }
+
+
+                        const currentCount =
+                            Number(
+                                voice.likesCount || 0
+                            );
+
+
+                        return {
+                            ...voice,
+
+                            isLiked:
+                                liked,
+
+                            likesCount:
+                                liked
+                                    ? currentCount + 1
+                                    : Math.max(
+                                        0,
+                                        currentCount - 1
+                                    ),
+                        };
+
+                    }
+                )
+        );
+
+    };
+
+
+    // =========================
+    // RENDER
+    // =========================
 
     return (
 
@@ -140,9 +215,7 @@ export default function ExplorePage() {
                 <div
                     className="explore-title"
                 >
-
                     Explore WeVoc
-
                 </div>
 
 
@@ -195,9 +268,7 @@ export default function ExplorePage() {
 
             {loading && (
 
-                <div
-                    className="feed-loading"
-                >
+                <div className="feed-loading">
 
                     Searching...
 
@@ -300,9 +371,7 @@ export default function ExplorePage() {
                                         }
                                     >
 
-                                        <div
-                                            className="friend-name"
-                                        >
+                                        <div className="friend-name">
 
                                             {
                                                 person.fullname
@@ -311,9 +380,7 @@ export default function ExplorePage() {
                                         </div>
 
 
-                                        <div
-                                            className="friend-college"
-                                        >
+                                        <div className="friend-college">
 
                                             @
                                             {
@@ -403,6 +470,9 @@ export default function ExplorePage() {
                                     post={
                                         voice
                                     }
+                                    onLikeChange={
+                                        handleLikeChange
+                                    }
                                     style={{
                                         animationDelay:
                                             `${index * 0.05}s`,
@@ -431,7 +501,7 @@ export default function ExplorePage() {
                         <div className="empty-ico">
 
                             😕
-                            
+
                         </div>
 
 
@@ -459,4 +529,3 @@ export default function ExplorePage() {
     );
 
 }
-

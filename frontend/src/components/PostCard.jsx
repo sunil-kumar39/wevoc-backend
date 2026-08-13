@@ -34,10 +34,15 @@ import {
 import { timeAgo } from "../utils/helpers";
 
 
+// ======================================================
+// POST CARD
+// ======================================================
+
 export default function PostCard({
     post,
     style,
     className = "",
+    onLikeChange,
 }) {
 
     const {
@@ -46,9 +51,9 @@ export default function PostCard({
     } = useApp();
 
 
-    // =========================
+    // ==================================================
     // AUTHOR
-    // =========================
+    // ==================================================
 
     const isAnon =
         post?.isAnonymous === true;
@@ -68,23 +73,45 @@ export default function PostCard({
         : `@${author?.username || ""}`;
 
 
-    // =========================
+    // ==================================================
     // LIKE
-    // =========================
+    // ==================================================
 
     const [liked, setLiked] =
-        useState(post?.isLiked || false);
+        useState(post?.isLiked === true);
 
     const [likeCount, setLikeCount] =
-        useState(post?.likesCount || 0);
+        useState(
+            Number(post?.likesCount || 0)
+        );
 
     const [likeLoading, setLikeLoading] =
         useState(false);
 
 
-    // =========================
+    // Keep like state synchronized when
+    // parent sends an updated post.
+
+    useEffect(() => {
+
+        setLiked(
+            post?.isLiked === true
+        );
+
+        setLikeCount(
+            Number(post?.likesCount || 0)
+        );
+
+    }, [
+        post?._id,
+        post?.isLiked,
+        post?.likesCount,
+    ]);
+
+
+    // ==================================================
     // AUDIO
-    // =========================
+    // ==================================================
 
     const [playing, setPlaying] =
         useState(false);
@@ -98,6 +125,10 @@ export default function PostCard({
     const [audioDuration, setAudioDuration] =
         useState(0);
 
+
+    // ==================================================
+    // AUDIO SETUP
+    // ==================================================
 
     useEffect(() => {
 
@@ -125,10 +156,13 @@ export default function PostCard({
                     audioElement.duration
                 )
             ) {
+
                 setAudioDuration(
                     audioElement.duration
                 );
+
             }
+
         };
 
 
@@ -137,6 +171,7 @@ export default function PostCard({
             setCurrentTime(
                 audioElement.currentTime || 0
             );
+
         };
 
 
@@ -144,6 +179,7 @@ export default function PostCard({
 
             setPlaying(false);
             setCurrentTime(0);
+
         };
 
 
@@ -155,6 +191,7 @@ export default function PostCard({
             );
 
             setPlaying(false);
+
         };
 
 
@@ -205,14 +242,15 @@ export default function PostCard({
                 "error",
                 handleError
             );
+
         };
 
     }, [post?.voiceFile]);
 
 
-    // =========================
+    // ==================================================
     // COMMENTS
-    // =========================
+    // ==================================================
 
     const [showComments, setShowComments] =
         useState(false);
@@ -239,9 +277,9 @@ export default function PostCard({
         useState("");
 
 
-    // =========================
+    // ==================================================
     // BOOKMARK
-    // =========================
+    // ==================================================
 
     const [isBkd, setIsBkd] =
         useState(false);
@@ -250,8 +288,10 @@ export default function PostCard({
         useState(false);
 
 
-    // Check bookmark status
-    // when card loads
+    // ==================================================
+    // CHECK BOOKMARK
+    // ==================================================
+
     useEffect(() => {
 
         const loadBookmarkStatus =
@@ -280,7 +320,9 @@ export default function PostCard({
                         "Bookmark status error:",
                         error
                     );
+
                 }
+
             };
 
 
@@ -289,12 +331,17 @@ export default function PostCard({
     }, [post?._id]);
 
 
-    // =========================
+    // ==================================================
     // LOAD COMMENTS
-    // =========================
+    // ==================================================
 
     const loadComments =
         async () => {
+
+            if (!post?._id) {
+                return;
+            }
+
 
             try {
 
@@ -321,20 +368,22 @@ export default function PostCard({
 
 
                 setCommentError(
-                    error.message ||
+                    error?.message ||
                     "Failed to load comments"
                 );
 
             } finally {
 
                 setCommentsLoading(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // OPEN COMMENTS
-    // =========================
+    // ==================================================
 
     const handleReply =
         async (e) => {
@@ -355,13 +404,15 @@ export default function PostCard({
             ) {
 
                 await loadComments();
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // ADD COMMENT
-    // =========================
+    // ==================================================
 
     const handleAddComment =
         async (e) => {
@@ -401,6 +452,7 @@ export default function PostCard({
                     setCommentText("");
 
                     await loadComments();
+
                 }
 
             } catch (error) {
@@ -412,20 +464,22 @@ export default function PostCard({
 
 
                 setCommentError(
-                    error.message ||
+                    error?.message ||
                     "Failed to add comment"
                 );
 
             } finally {
 
                 setCommentLoading(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // START EDIT
-    // =========================
+    // ==================================================
 
     const startEdit =
         (comment) => {
@@ -435,26 +489,28 @@ export default function PostCard({
             );
 
             setEditText(
-                comment.content
+                comment.content || ""
             );
+
         };
 
 
-    // =========================
+    // ==================================================
     // CANCEL EDIT
-    // =========================
+    // ==================================================
 
     const cancelEdit =
         () => {
 
             setEditingCommentId(null);
             setEditText("");
+
         };
 
 
-    // =========================
+    // ==================================================
     // UPDATE COMMENT
-    // =========================
+    // ==================================================
 
     const handleUpdateComment =
         async (commentId) => {
@@ -495,20 +551,22 @@ export default function PostCard({
 
 
                 setCommentError(
-                    error.message ||
+                    error?.message ||
                     "Failed to update comment"
                 );
 
             } finally {
 
                 setCommentLoading(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // DELETE COMMENT
-    // =========================
+    // ==================================================
 
     const handleDeleteComment =
         async (commentId) => {
@@ -546,20 +604,22 @@ export default function PostCard({
 
 
                 setCommentError(
-                    error.message ||
+                    error?.message ||
                     "Failed to delete comment"
                 );
 
             } finally {
 
                 setCommentLoading(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // LIKE VOICE
-    // =========================
+    // ==================================================
 
     const handleLike =
         async (e) => {
@@ -567,9 +627,49 @@ export default function PostCard({
             e.stopPropagation();
 
 
-            if (likeLoading) {
+            if (
+                likeLoading ||
+                !post?._id
+            ) {
                 return;
             }
+
+
+            // ------------------------------------------
+            // Save old state for rollback
+            // ------------------------------------------
+
+            const previousLiked =
+                liked;
+
+            const previousCount =
+                likeCount;
+
+
+            // ------------------------------------------
+            // Optimistic UI
+            // ------------------------------------------
+
+            const optimisticLiked =
+                !previousLiked;
+
+
+            const optimisticCount =
+                optimisticLiked
+                    ? previousCount + 1
+                    : Math.max(
+                        0,
+                        previousCount - 1
+                    );
+
+
+            setLiked(
+                optimisticLiked
+            );
+
+            setLikeCount(
+                optimisticCount
+            );
 
 
             try {
@@ -583,40 +683,118 @@ export default function PostCard({
                     );
 
 
-                const likedNow =
+                // --------------------------------------
+                // Support multiple backend response
+                // formats
+                // --------------------------------------
+
+                const serverLiked =
                     response?.data?.liked ??
-                    response?.data?.isLiked ??
-                    !liked;
+                    response?.data?.isLiked;
 
 
-                setLiked(likedNow);
+                const likedNow =
+                    typeof serverLiked === "boolean"
+                        ? serverLiked
+                        : optimisticLiked;
 
 
-                setLikeCount(
-                    (count) => {
+                // --------------------------------------
+                // Get server count if backend sends it
+                // --------------------------------------
 
-                        if (
-                            likedNow &&
-                            !liked
-                        ) {
-                            return count + 1;
-                        }
+                const serverCount =
+                    response?.data?.likesCount ??
+                    response?.data?.likeCount;
 
 
-                        if (
-                            !likedNow &&
-                            liked
-                        ) {
-                            return Math.max(
-                                0,
-                                count - 1
-                            );
-                        }
-
-
-                        return count;
-                    }
+                setLiked(
+                    likedNow
                 );
+
+
+                if (
+                    typeof serverCount === "number"
+                ) {
+
+                    setLikeCount(
+                        Math.max(
+                            0,
+                            serverCount
+                        )
+                    );
+
+                } else {
+
+                    setLikeCount(
+                        (count) => {
+
+                            // If backend says same state
+                            // as our optimistic state,
+                            // keep count.
+
+                            if (
+                                likedNow ===
+                                optimisticLiked
+                            ) {
+
+                                return count;
+
+                            }
+
+
+                            // Backend state differs.
+                            // Correct count based on
+                            // original state.
+
+                            if (
+                                likedNow &&
+                                !previousLiked
+                            ) {
+
+                                return (
+                                    previousCount + 1
+                                );
+
+                            }
+
+
+                            if (
+                                !likedNow &&
+                                previousLiked
+                            ) {
+
+                                return Math.max(
+                                    0,
+                                    previousCount - 1
+                                );
+
+                            }
+
+
+                            return previousCount;
+
+                        }
+                    );
+
+                }
+
+
+                // --------------------------------------
+                // Notify parent
+                // --------------------------------------
+
+                if (onLikeChange) {
+
+                    onLikeChange(
+                        post._id,
+                        likedNow,
+                        typeof serverCount === "number"
+                            ? serverCount
+                            : undefined
+                    );
+
+                }
 
             } catch (error) {
 
@@ -625,16 +803,31 @@ export default function PostCard({
                     error
                 );
 
+
+                // --------------------------------------
+                // ROLLBACK
+                // --------------------------------------
+
+                setLiked(
+                    previousLiked
+                );
+
+                setLikeCount(
+                    previousCount
+                );
+
             } finally {
 
                 setLikeLoading(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // AUDIO PLAY / PAUSE
-    // =========================
+    // ==================================================
 
     const handlePlay =
         async (e) => {
@@ -660,6 +853,7 @@ export default function PostCard({
                     await audio.play();
 
                     setPlaying(true);
+
                 }
 
             } catch (error) {
@@ -670,13 +864,15 @@ export default function PostCard({
                 );
 
                 setPlaying(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // BOOKMARK
-    // =========================
+    // ==================================================
 
     const handleBookmark =
         async (e) => {
@@ -684,9 +880,23 @@ export default function PostCard({
             e.stopPropagation();
 
 
-            if (bookmarkLoading) {
+            if (
+                bookmarkLoading ||
+                !post?._id
+            ) {
                 return;
             }
+
+
+            const previousBookmark =
+                isBkd;
+
+
+            // Optimistic update
+
+            setIsBkd(
+                !previousBookmark
+            );
 
 
             try {
@@ -704,9 +914,16 @@ export default function PostCard({
                     response?.data?.bookmarked;
 
 
-                setIsBkd(
-                    bookmarkedNow === true
-                );
+                if (
+                    typeof bookmarkedNow ===
+                    "boolean"
+                ) {
+
+                    setIsBkd(
+                        bookmarkedNow
+                    );
+
+                }
 
             } catch (error) {
 
@@ -715,16 +932,25 @@ export default function PostCard({
                     error
                 );
 
+
+                // Rollback
+
+                setIsBkd(
+                    previousBookmark
+                );
+
             } finally {
 
                 setBookmarkLoading(false);
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // USER PROFILE
-    // =========================
+    // ==================================================
 
     const goUser =
         (e) => {
@@ -734,20 +960,22 @@ export default function PostCard({
 
             if (
                 !isAnon &&
-                author
+                author?._id
             ) {
 
                 navigate(
                     "user",
                     author
                 );
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // SHARE
-    // =========================
+    // ==================================================
 
     const handleShare =
         async (e) => {
@@ -761,9 +989,12 @@ export default function PostCard({
                     `${window.location.origin}/voice/${post._id}`;
 
 
-                if (navigator.share) {
+                if (
+                    navigator.share
+                ) {
 
                     await navigator.share({
+
                         title:
                             post.title ||
                             "WeVoc Voice",
@@ -773,6 +1004,7 @@ export default function PostCard({
                             "Check out this voice on WeVoc",
 
                         url,
+
                     });
 
                 } else {
@@ -784,20 +1016,26 @@ export default function PostCard({
                     alert(
                         "Voice link copied!"
                     );
+
                 }
 
             } catch (error) {
 
+                // User cancelling native share
+                // is not an actual error.
+
                 console.log(
                     "Share cancelled"
                 );
+
             }
+
         };
 
 
-    // =========================
+    // ==================================================
     // FORMAT DURATION
-    // =========================
+    // ==================================================
 
     const formatDuration =
         (seconds) => {
@@ -810,6 +1048,7 @@ export default function PostCard({
             ) {
 
                 return "0:00";
+
             }
 
 
@@ -828,12 +1067,13 @@ export default function PostCard({
             return `${mins}:${secs
                 .toString()
                 .padStart(2, "0")}`;
+
         };
 
 
-    // =========================
+    // ==================================================
     // COMMENT COUNT
-    // =========================
+    // ==================================================
 
     const commentCount =
         showComments
@@ -845,9 +1085,9 @@ export default function PostCard({
             );
 
 
-    // =========================
+    // ==================================================
     // SCORE
-    // =========================
+    // ==================================================
 
     const score =
         post?.score ??
@@ -857,9 +1097,9 @@ export default function PostCard({
         );
 
 
-    // =========================
+    // ==================================================
     // RENDER
-    // =========================
+    // ==================================================
 
     return (
 
@@ -872,9 +1112,9 @@ export default function PostCard({
             style={style}
         >
 
-            {/* =========================
+            {/* =========================================
                 AVATAR
-            ========================= */}
+            ========================================= */}
 
             <Avatar
                 name={
@@ -896,16 +1136,16 @@ export default function PostCard({
             />
 
 
-            {/* =========================
+            {/* =========================================
                 BODY
-            ========================= */}
+            ========================================= */}
 
             <div className="post-body-col">
 
 
-                {/* =========================
+                {/* =====================================
                     HEADER
-                ========================= */}
+                ===================================== */}
 
                 <div className="post-header">
 
@@ -962,6 +1202,7 @@ export default function PostCard({
 
 
                     <button
+                        type="button"
                         className="post-more-btn"
                         onClick={(e) =>
                             e.stopPropagation()
@@ -973,9 +1214,9 @@ export default function PostCard({
                 </div>
 
 
-                {/* =========================
+                {/* =====================================
                     TITLE
-                ========================= */}
+                ===================================== */}
 
                 {post?.title && (
 
@@ -988,9 +1229,9 @@ export default function PostCard({
                 )}
 
 
-                {/* =========================
+                {/* =====================================
                     DESCRIPTION
-                ========================= */}
+                ===================================== */}
 
                 {post?.description && (
 
@@ -1003,13 +1244,14 @@ export default function PostCard({
                 )}
 
 
-                {/* =========================
+                {/* =====================================
                     AUDIO
-                ========================= */}
+                ===================================== */}
 
                 <div className="audio-player">
 
                     <button
+                        type="button"
                         className="play-btn"
                         onClick={handlePlay}
                         disabled={!audio}
@@ -1046,16 +1288,19 @@ export default function PostCard({
                 </div>
 
 
-                {/* =========================
+                {/* =====================================
                     ACTIONS
-                ========================= */}
+                ===================================== */}
 
                 <div className="post-actions">
 
 
-                    {/* COMMENTS */}
+                    {/* =================================
+                        COMMENTS
+                    ================================= */}
 
                     <button
+                        type="button"
                         className="act-btn act-reply"
                         onClick={
                             handleReply
@@ -1078,9 +1323,12 @@ export default function PostCard({
                     </button>
 
 
-                    {/* LIKE */}
+                    {/* =================================
+                        LIKE
+                    ================================= */}
 
                     <button
+                        type="button"
                         className={`act-btn${
                             liked
                                 ? " liked"
@@ -1091,6 +1339,11 @@ export default function PostCard({
                         }
                         disabled={
                             likeLoading
+                        }
+                        aria-label={
+                            liked
+                                ? "Unlike voice"
+                                : "Like voice"
                         }
                     >
 
@@ -1113,9 +1366,12 @@ export default function PostCard({
                     </button>
 
 
-                    {/* BOOKMARK */}
+                    {/* =================================
+                        BOOKMARK
+                    ================================= */}
 
                     <button
+                        type="button"
                         className={`act-btn${
                             isBkd
                                 ? " liked"
@@ -1171,9 +1427,12 @@ export default function PostCard({
                     </button>
 
 
-                    {/* SHARE */}
+                    {/* =================================
+                        SHARE
+                    ================================= */}
 
                     <button
+                        type="button"
                         className="act-btn act-share"
                         onClick={
                             handleShare
@@ -1189,7 +1448,9 @@ export default function PostCard({
                     </button>
 
 
-                    {/* SCORE */}
+                    {/* =================================
+                        SCORE
+                    ================================= */}
 
                     <div className="score-badge">
 
@@ -1202,9 +1463,9 @@ export default function PostCard({
                 </div>
 
 
-                {/* =========================
+                {/* =====================================
                     COMMENTS
-                ========================= */}
+                ===================================== */}
 
                 {showComments && (
 
@@ -1214,7 +1475,9 @@ export default function PostCard({
                         }}
                     >
 
-                        {/* Add comment */}
+                        {/* =============================
+                            ADD COMMENT
+                        ============================= */}
 
                         <form
                             onSubmit={
@@ -1264,7 +1527,9 @@ export default function PostCard({
                         </form>
 
 
-                        {/* Error */}
+                        {/* =============================
+                            ERROR
+                        ============================= */}
 
                         {commentError && (
 
@@ -1274,13 +1539,17 @@ export default function PostCard({
                                     marginBottom: 10,
                                 }}
                             >
+
                                 {commentError}
+
                             </div>
 
                         )}
 
 
-                        {/* Loading */}
+                        {/* =============================
+                            LOADING
+                        ============================= */}
 
                         {commentsLoading && (
 
@@ -1297,7 +1566,9 @@ export default function PostCard({
                         )}
 
 
-                        {/* Empty */}
+                        {/* =============================
+                            EMPTY
+                        ============================= */}
 
                         {!commentsLoading &&
                             comments.length === 0 && (
@@ -1316,7 +1587,9 @@ export default function PostCard({
                             )}
 
 
-                        {/* Comment list */}
+                        {/* =============================
+                            COMMENT LIST
+                        ============================= */}
 
                         {!commentsLoading &&
                             comments.map(
@@ -1467,6 +1740,10 @@ export default function PostCard({
                                                 </div>
 
 
+                                                {/* =================
+                                                    EDIT COMMENT
+                                                ================= */}
+
                                                 {editingCommentId ===
                                                 comment._id ? (
 
@@ -1530,9 +1807,11 @@ export default function PostCard({
                                                                 "5px 0 0",
                                                         }}
                                                     >
+
                                                         {
                                                             comment.content
                                                         }
+
                                                     </p>
 
                                                 )}
@@ -1574,5 +1853,7 @@ export default function PostCard({
             </div>
 
         </article>
+
     );
+
 }

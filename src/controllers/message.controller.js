@@ -21,6 +21,10 @@ const sendVoiceMessage = asyncHandler(
 
         const { receiverId } = req.params;
 
+        // ---------------------------------------------
+        // Validate receiver
+        // ---------------------------------------------
+
         if (!isValidObjectId(receiverId)) {
             throw new ApiError(
                 400,
@@ -28,8 +32,10 @@ const sendVoiceMessage = asyncHandler(
             );
         }
 
-
+        // ---------------------------------------------
         // Cannot message yourself
+        // ---------------------------------------------
+
         if (
             receiverId.toString() ===
             req.user._id.toString()
@@ -40,11 +46,15 @@ const sendVoiceMessage = asyncHandler(
             );
         }
 
-
+        // ---------------------------------------------
         // Check receiver
-        const receiver = await User.findById(
-            receiverId
-        );
+        // ---------------------------------------------
+
+        const receiver =
+            await User.findById(receiverId)
+                .select(
+                    "fullname username avatar"
+                );
 
         if (!receiver) {
             throw new ApiError(
@@ -53,11 +63,12 @@ const sendVoiceMessage = asyncHandler(
             );
         }
 
+        // ---------------------------------------------
+        // Uploaded voice file
+        // ---------------------------------------------
 
-        // Get uploaded audio
         const voiceFileLocalPath =
             req.file?.path;
-
 
         if (!voiceFileLocalPath) {
             throw new ApiError(
@@ -66,13 +77,14 @@ const sendVoiceMessage = asyncHandler(
             );
         }
 
+        // ---------------------------------------------
+        // Upload to Cloudinary
+        // ---------------------------------------------
 
-        // Upload audio to Cloudinary
         const voiceFile =
             await uploadOnCloudinary(
                 voiceFileLocalPath
             );
-
 
         if (
             !voiceFile ||
@@ -84,6 +96,9 @@ const sendVoiceMessage = asyncHandler(
             );
         }
 
+        // ---------------------------------------------
+        // Save message
+        // ---------------------------------------------
 
         const message =
             await Message.create({
@@ -104,20 +119,44 @@ const sendVoiceMessage = asyncHandler(
 
             });
 
+        // ---------------------------------------------
+        // Populate message
+        // ---------------------------------------------
 
         const populatedMessage =
             await Message.findById(
                 message._id
             )
-            .populate(
-                "sender",
-                "fullname username avatar"
-            )
-            .populate(
-                "receiver",
-                "fullname username avatar"
+                .populate(
+                    "sender",
+                    "fullname username avatar"
+                )
+                .populate(
+                    "receiver",
+                    "fullname username avatar"
+                );
+
+        // ---------------------------------------------
+        // REAL-TIME SOCKET EMIT
+        // ---------------------------------------------
+
+        const io =
+            req.app.get("io");
+
+        if (io) {
+
+            io.to(
+                `user:${receiverId}`
+            ).emit(
+                "message:new",
+                populatedMessage
             );
 
+        }
+
+        // ---------------------------------------------
+        // Response
+        // ---------------------------------------------
 
         return res.status(201).json(
 
@@ -144,7 +183,6 @@ const getConversations = asyncHandler(
                 req.user._id
             );
 
-
         const messages =
             await Message.find({
 
@@ -158,46 +196,42 @@ const getConversations = asyncHandler(
                 ],
 
             })
-            .sort({
-                createdAt: -1,
-            })
-            .populate(
-                "sender",
-                "fullname username avatar"
-            )
-            .populate(
-                "receiver",
-                "fullname username avatar"
-            );
+                .sort({
+                    createdAt: -1,
+                })
+                .populate(
+                    "sender",
+                    "fullname username avatar"
+                )
+                .populate(
+                    "receiver",
+                    "fullname username avatar"
+                );
 
+        const conversations =
+            new Map();
 
-        const conversations = new Map();
-
-
-        for (const message of messages) {
+        for (
+            const message of messages
+        ) {
 
             const isSender =
                 message.sender._id.toString() ===
                 userId.toString();
-
 
             const otherUser =
                 isSender
                     ? message.receiver
                     : message.sender;
 
-
             if (!otherUser) {
                 continue;
             }
 
-
             const otherUserId =
                 otherUser._id.toString();
 
-
-            // First message is latest because
-            // messages are sorted descending
+            // Latest message
             if (
                 !conversations.has(
                     otherUserId
@@ -232,11 +266,9 @@ const getConversations = asyncHandler(
                         unreadCount: 0,
                     }
                 );
-
             }
 
-
-            // Count unread incoming messages
+            // Unread incoming messages
             if (
                 !isSender &&
                 !message.isRead
@@ -248,16 +280,13 @@ const getConversations = asyncHandler(
                     );
 
                 conversation.unreadCount += 1;
-
             }
         }
-
 
         const result =
             Array.from(
                 conversations.values()
             );
-
 
         return res.status(200).json(
 
@@ -283,7 +312,6 @@ const getMessagesWithUser =
             const { userId } =
                 req.params;
 
-
             if (
                 !isValidObjectId(
                     userId
@@ -295,14 +323,12 @@ const getMessagesWithUser =
                 );
             }
 
-
             const otherUser =
                 await User.findById(
                     userId
                 ).select(
                     "fullname username avatar bio"
                 );
-
 
             if (!otherUser) {
                 throw new ApiError(
@@ -311,10 +337,8 @@ const getMessagesWithUser =
                 );
             }
 
-
             const currentUserId =
                 req.user._id;
-
 
             const messages =
                 await Message.find({
@@ -340,20 +364,22 @@ const getMessagesWithUser =
                     ],
 
                 })
-                .sort({
-                    createdAt: 1,
-                })
-                .populate(
-                    "sender",
-                    "fullname username avatar"
-                )
-                .populate(
-                    "receiver",
-                    "fullname username avatar"
-                );
+                    .sort({
+                        createdAt: 1,
+                    })
+                    .populate(
+                        "sender",
+                        "fullname username avatar"
+                    )
+                    .populate(
+                        "receiver",
+                        "fullname username avatar"
+                    );
 
-
+            // -----------------------------------------
             // Mark incoming messages as read
+            // -----------------------------------------
+
             await Message.updateMany(
 
                 {
@@ -374,7 +400,6 @@ const getMessagesWithUser =
                 }
 
             );
-
 
             return res.status(200).json(
 
@@ -413,7 +438,6 @@ const getUnreadMessageCount =
 
                 });
 
-
             return res.status(200).json(
 
                 new ApiResponse(
@@ -430,9 +454,90 @@ const getUnreadMessageCount =
     );
 
 
+// =====================================================
+// MARK CONVERSATION AS READ
+// =====================================================
+
+const markMessagesAsRead =
+    asyncHandler(
+        async (req, res) => {
+
+            const { userId } =
+                req.params;
+
+            if (
+                !isValidObjectId(
+                    userId
+                )
+            ) {
+                throw new ApiError(
+                    400,
+                    "Invalid user ID"
+                );
+            }
+
+            const result =
+                await Message.updateMany(
+
+                    {
+                        sender:
+                            userId,
+
+                        receiver:
+                            req.user._id,
+
+                        isRead: false,
+                    },
+
+                    {
+                        $set: {
+                            isRead: true,
+                            readAt: new Date(),
+                        },
+                    }
+
+                );
+
+            // Notify sender that messages
+            // have been read
+            const io =
+                req.app.get("io");
+
+            if (io) {
+
+                io.to(
+                    `user:${userId}`
+                ).emit(
+                    "messages:read",
+                    {
+                        userId:
+                            req.user._id.toString(),
+                    }
+                );
+
+            }
+
+            return res.status(200).json(
+
+                new ApiResponse(
+                    200,
+                    {
+                        modifiedCount:
+                            result.modifiedCount,
+                    },
+
+                    "Messages marked as read"
+                )
+
+            );
+        }
+    );
+
+
 export {
     sendVoiceMessage,
     getConversations,
     getMessagesWithUser,
     getUnreadMessageCount,
+    markMessagesAsRead,
 };

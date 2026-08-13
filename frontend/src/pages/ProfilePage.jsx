@@ -13,16 +13,18 @@ import {
 } from "../api/auth.api";
 
 import {
+    getFollowers,
+    getFollowing,
+    getUserProfile,
+} from "../api/follow.api";
+
+import {
     getAllVoices,
 } from "../api/voice.api";
 
 import {
     getLikedVoices,
 } from "../api/like.api";
-
-import {
-    getUserProfile,
-} from "../api/follow.api";
 
 import { fmtDate } from "../utils/helpers";
 
@@ -39,15 +41,26 @@ export default function ProfilePage() {
     // STATES
     // =========================
 
-    const [profile, setProfile] = useState(null);
+    const [profile, setProfile] =
+        useState(null);
 
-    const [myPosts, setMyPosts] = useState([]);
+    const [myPosts, setMyPosts] =
+        useState([]);
 
-    const [likedPosts, setLikedPosts] = useState([]);
+    const [likedPosts, setLikedPosts] =
+        useState([]);
 
-    const [tab, setTab] = useState("posts");
+    const [followers, setFollowers] =
+        useState([]);
 
-    const [editing, setEditing] = useState(false);
+    const [following, setFollowing] =
+        useState([]);
+
+    const [tab, setTab] =
+        useState("posts");
+
+    const [editing, setEditing] =
+        useState(false);
 
     const [form, setForm] = useState({
         fullname: "",
@@ -55,19 +68,33 @@ export default function ProfilePage() {
         bio: "",
     });
 
-    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarFile, setAvatarFile] =
+        useState(null);
 
-    const [coverFile, setCoverFile] = useState(null);
+    const [coverFile, setCoverFile] =
+        useState(null);
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] =
+        useState(true);
 
-    const [saving, setSaving] = useState(false);
+    const [saving, setSaving] =
+        useState(false);
 
-    const [imageSaving, setImageSaving] = useState(false);
+    const [imageSaving, setImageSaving] =
+        useState(false);
 
-    const [error, setError] = useState("");
+    const [connectionsLoading, setConnectionsLoading] =
+        useState(false);
 
-    const [success, setSuccess] = useState("");
+    const [error, setError] =
+        useState("");
+
+    const [success, setSuccess] =
+        useState("");
+
+    // Full image preview
+    const [previewImage, setPreviewImage] =
+        useState(null);
 
 
     // =========================
@@ -81,6 +108,10 @@ export default function ProfilePage() {
             setLoading(true);
             setError("");
 
+            // ---------------------------------
+            // CURRENT USER
+            // ---------------------------------
+
             const currentUserResponse =
                 await getCurrentUser();
 
@@ -89,50 +120,137 @@ export default function ProfilePage() {
 
 
             if (!currentUser) {
-                throw new Error("User not found");
+                throw new Error(
+                    "User not found"
+                );
             }
 
 
-            // Update global user
+            // ---------------------------------
+            // UPDATE GLOBAL USER
+            // ---------------------------------
+
             setUser(currentUser);
 
 
-            // Set form
+            // ---------------------------------
+            // SET FORM
+            // ---------------------------------
+
             setForm({
-                fullname: currentUser.fullname || "",
-                email: currentUser.email || "",
-                bio: currentUser.bio || "",
+                fullname:
+                    currentUser.fullname || "",
+
+                email:
+                    currentUser.email || "",
+
+                bio:
+                    currentUser.bio || "",
             });
 
 
-            // Get profile statistics
+            // ---------------------------------
+            // PROFILE INFORMATION
+            // ---------------------------------
+
             const profileResponse =
-                await getUserProfile(currentUser._id);
+                await getUserProfile(
+                    currentUser._id
+                );
 
-            setProfile(
-                profileResponse?.data || null
-            );
+            const profileData =
+                profileResponse?.data || null;
+
+            setProfile(profileData);
 
 
-            // Get user's voices
+            // ---------------------------------
+            // FOLLOWERS + FOLLOWING
+            // ---------------------------------
+
+            try {
+
+                setConnectionsLoading(true);
+
+                const [
+                    followersResponse,
+                    followingResponse,
+                ] = await Promise.all([
+
+                    getFollowers(
+                        currentUser._id
+                    ),
+
+                    getFollowing(
+                        currentUser._id
+                    ),
+
+                ]);
+
+
+                setFollowers(
+                    followersResponse?.data?.followers ||
+                    []
+                );
+
+
+                setFollowing(
+                    followingResponse?.data?.following ||
+                    []
+                );
+
+
+            } catch (connectionError) {
+
+                console.error(
+                    "Failed to load connections:",
+                    connectionError
+                );
+
+                setFollowers([]);
+                setFollowing([]);
+
+            } finally {
+
+                setConnectionsLoading(false);
+
+            }
+
+
+            // ---------------------------------
+            // GET USER'S VOICES
+            // ---------------------------------
+
             const voicesResponse =
-                await getAllVoices(1, 100);
+                await getAllVoices(
+                    1,
+                    100
+                );
 
             const allVoices =
-                voicesResponse?.data?.voices || [];
+                voicesResponse?.data?.voices ||
+                [];
 
 
             const userVoices =
                 allVoices.filter(
                     (voice) =>
-                        voice.owner?._id ===
-                        currentUser._id
+                        String(
+                            voice.owner?._id
+                        ) ===
+                        String(
+                            currentUser._id
+                        )
                 );
+
 
             setMyPosts(userVoices);
 
 
-            // Get liked voices
+            // ---------------------------------
+            // GET LIKED VOICES
+            // ---------------------------------
+
             const likedResponse =
                 await getLikedVoices();
 
@@ -142,11 +260,16 @@ export default function ProfilePage() {
 
             const likedVoices =
                 likedData
-                    .map((item) => item.voice)
+                    .map(
+                        (item) =>
+                            item?.voice
+                    )
                     .filter(Boolean);
 
 
-            setLikedPosts(likedVoices);
+            setLikedPosts(
+                likedVoices
+            );
 
 
         } catch (error) {
@@ -189,17 +312,21 @@ export default function ProfilePage() {
 
         if (!form.fullname.trim()) {
 
-            setError("Full name is required");
-            return;
+            setError(
+                "Full name is required"
+            );
 
+            return;
         }
 
 
         if (!form.email.trim()) {
 
-            setError("Email is required");
-            return;
+            setError(
+                "Email is required"
+            );
 
+            return;
         }
 
 
@@ -234,15 +361,26 @@ export default function ProfilePage() {
 
                 setUser(updatedUser);
 
+                setProfile(
+                    (current) => ({
+                        ...(current || {}),
+                        ...updatedUser,
+                    })
+                );
+
+
                 setForm({
                     fullname:
-                        updatedUser.fullname || "",
+                        updatedUser.fullname ||
+                        "",
 
                     email:
-                        updatedUser.email || "",
+                        updatedUser.email ||
+                        "",
 
                     bio:
-                        updatedUser.bio || "",
+                        updatedUser.bio ||
+                        "",
                 });
 
             }
@@ -280,129 +418,156 @@ export default function ProfilePage() {
     // CHANGE AVATAR
     // =========================
 
-    const handleAvatarChange = async (e) => {
+    const handleAvatarChange =
+        async (e) => {
 
-        const file =
-            e.target.files?.[0];
-
-
-        if (!file) return;
+            const file =
+                e.target.files?.[0];
 
 
-        try {
-
-            setImageSaving(true);
-
-            setError("");
-            setSuccess("");
+            if (!file) return;
 
 
-            const response =
-                await updateUserAvatar(file);
+            try {
+
+                setAvatarFile(file);
+
+                setImageSaving(true);
+
+                setError("");
+                setSuccess("");
 
 
-            const updatedUser =
-                response?.data;
+                const response =
+                    await updateUserAvatar(
+                        file
+                    );
 
 
-            if (updatedUser) {
+                const updatedUser =
+                    response?.data;
 
-                setUser(updatedUser);
+
+                if (updatedUser) {
+
+                    setUser(updatedUser);
+
+                    setProfile(
+                        (current) => ({
+                            ...(current || {}),
+                            ...updatedUser,
+                        })
+                    );
+
+                }
+
+
+                setSuccess(
+                    "Avatar updated successfully"
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "Avatar update failed:",
+                    error
+                );
+
+                setError(
+                    error.message ||
+                    "Failed to update avatar"
+                );
+
+            } finally {
+
+                setImageSaving(false);
+
+                setAvatarFile(null);
+
+                e.target.value = "";
 
             }
 
-
-            setSuccess(
-                "Avatar updated successfully"
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "Avatar update failed:",
-                error
-            );
-
-            setError(
-                error.message ||
-                "Failed to update avatar"
-            );
-
-        } finally {
-
-            setImageSaving(false);
-
-            // Reset file input
-            e.target.value = "";
-
-        }
-
-    };
+        };
 
 
     // =========================
     // CHANGE COVER IMAGE
     // =========================
 
-    const handleCoverChange = async (e) => {
+    const handleCoverChange =
+        async (e) => {
 
-        const file =
-            e.target.files?.[0];
-
-
-        if (!file) return;
+            const file =
+                e.target.files?.[0];
 
 
-        try {
-
-            setImageSaving(true);
-
-            setError("");
-            setSuccess("");
+            if (!file) return;
 
 
-            const response =
-                await updateUserCoverImage(file);
+            try {
+
+                setCoverFile(file);
+
+                setImageSaving(true);
+
+                setError("");
+                setSuccess("");
 
 
-            const updatedUser =
-                response?.data;
+                const response =
+                    await updateUserCoverImage(
+                        file
+                    );
 
 
-            if (updatedUser) {
+                const updatedUser =
+                    response?.data;
 
-                setUser(updatedUser);
+
+                if (updatedUser) {
+
+                    setUser(updatedUser);
+
+                    setProfile(
+                        (current) => ({
+                            ...(current || {}),
+                            ...updatedUser,
+                        })
+                    );
+
+                }
+
+
+                setSuccess(
+                    "Cover image updated successfully"
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "Cover image update failed:",
+                    error
+                );
+
+                setError(
+                    error.message ||
+                    "Failed to update cover image"
+                );
+
+            } finally {
+
+                setImageSaving(false);
+
+                setCoverFile(null);
+
+                e.target.value = "";
 
             }
 
-
-            setSuccess(
-                "Cover image updated successfully"
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "Cover image update failed:",
-                error
-            );
-
-            setError(
-                error.message ||
-                "Failed to update cover image"
-            );
-
-        } finally {
-
-            setImageSaving(false);
-
-            e.target.value = "";
-
-        }
-
-    };
+        };
 
 
     // =========================
@@ -424,11 +589,38 @@ export default function ProfilePage() {
 
         });
 
+
         setEditing(false);
 
         setError("");
 
     };
+
+
+    // =========================
+    // OPEN IMAGE PREVIEW
+    // =========================
+
+    const openImagePreview =
+        (src) => {
+
+            if (!src) return;
+
+            setPreviewImage(src);
+
+        };
+
+
+    // =========================
+    // CLOSE IMAGE PREVIEW
+    // =========================
+
+    const closeImagePreview =
+        () => {
+
+            setPreviewImage(null);
+
+        };
 
 
     // =========================
@@ -470,11 +662,14 @@ export default function ProfilePage() {
 
                 </div>
 
+
                 <button
                     className="btn btn-primary"
                     onClick={loadProfile}
                 >
+
                     Retry
+
                 </button>
 
             </div>
@@ -483,6 +678,10 @@ export default function ProfilePage() {
 
     }
 
+
+    // =========================
+    // DISPLAY USER
+    // =========================
 
     const displayUser =
         user || profile;
@@ -508,6 +707,38 @@ export default function ProfilePage() {
 
 
     // =========================
+    // FOLLOWER USER OBJECT
+    // =========================
+
+    const getFollowerUser =
+        (item) => {
+
+            return (
+                item?.follower ||
+                item?.user ||
+                item
+            );
+
+        };
+
+
+    // =========================
+    // FOLLOWING USER OBJECT
+    // =========================
+
+    const getFollowingUser =
+        (item) => {
+
+            return (
+                item?.following ||
+                item?.user ||
+                item
+            );
+
+        };
+
+
+    // =========================
     // RENDER
     // =========================
 
@@ -516,7 +747,9 @@ export default function ProfilePage() {
         <div className="profile-page">
 
 
-            {/* HEADER */}
+            {/* =========================
+                HEADER
+            ========================= */}
 
             <div className="profile-header">
 
@@ -528,8 +761,11 @@ export default function ProfilePage() {
                             fontSize: 20,
                         }}
                     >
+
                         My Profile
+
                     </div>
+
 
                     <div
                         style={{
@@ -537,7 +773,9 @@ export default function ProfilePage() {
                             color: "var(--ink3)",
                         }}
                     >
+
                         @{displayUser.username}
+
                     </div>
 
                 </div>
@@ -545,23 +783,31 @@ export default function ProfilePage() {
             </div>
 
 
-            {/* ERROR */}
+            {/* =========================
+                ERROR
+            ========================= */}
 
             {error && (
 
                 <div className="auth-error">
+
                     {error}
+
                 </div>
 
             )}
 
 
-            {/* SUCCESS */}
+            {/* =========================
+                SUCCESS
+            ========================= */}
 
             {success && (
 
                 <div className="auth-success">
+
                     {success}
+
                 </div>
 
             )}
@@ -586,12 +832,20 @@ export default function ProfilePage() {
                 {displayUser.coverImage ? (
 
                     <img
-                        src={displayUser.coverImage}
+                        src={
+                            displayUser.coverImage
+                        }
                         alt="Cover"
+                        onClick={() =>
+                            openImagePreview(
+                                displayUser.coverImage
+                            )
+                        }
                         style={{
                             width: "100%",
                             height: "100%",
                             objectFit: "cover",
+                            cursor: "pointer",
                         }}
                     />
 
@@ -608,7 +862,9 @@ export default function ProfilePage() {
                             fontSize: 14,
                         }}
                     >
+
                         No cover image
+
                     </div>
 
                 )}
@@ -635,10 +891,13 @@ export default function ProfilePage() {
                         ? "Uploading..."
                         : "📷 Change cover"}
 
+
                     <input
                         type="file"
                         accept="image/*"
-                        onChange={handleCoverChange}
+                        onChange={
+                            handleCoverChange
+                        }
                         disabled={imageSaving}
                         style={{
                             display: "none",
@@ -657,7 +916,9 @@ export default function ProfilePage() {
             <div className="profile-info-wrap">
 
 
-                {/* AVATAR */}
+                {/* =========================
+                    AVATAR
+                ========================= */}
 
                 <div
                     className="profile-avatar-bump"
@@ -667,9 +928,18 @@ export default function ProfilePage() {
                 >
 
                     <Avatar
-                        name={displayUser.fullname}
-                        src={displayUser.avatar}
+                        name={
+                            displayUser.fullname
+                        }
+                        src={
+                            displayUser.avatar
+                        }
                         size="2xl"
+                        onClick={() =>
+                            openImagePreview(
+                                displayUser.avatar
+                            )
+                        }
                     />
 
 
@@ -698,10 +968,13 @@ export default function ProfilePage() {
 
                         📷
 
+
                         <input
                             type="file"
                             accept="image/*"
-                            onChange={handleAvatarChange}
+                            onChange={
+                                handleAvatarChange
+                            }
                             disabled={imageSaving}
                             style={{
                                 display: "none",
@@ -713,7 +986,9 @@ export default function ProfilePage() {
                 </div>
 
 
-                {/* EDIT MODE */}
+                {/* =========================
+                    EDIT MODE
+                ========================= */}
 
                 {editing ? (
 
@@ -730,12 +1005,17 @@ export default function ProfilePage() {
                         <div className="field-group">
 
                             <label className="field-label">
+
                                 Full name
+
                             </label>
+
 
                             <input
                                 className="field"
-                                value={form.fullname}
+                                value={
+                                    form.fullname
+                                }
                                 onChange={(e) =>
                                     setForm({
                                         ...form,
@@ -753,13 +1033,18 @@ export default function ProfilePage() {
                         <div className="field-group">
 
                             <label className="field-label">
+
                                 Email
+
                             </label>
+
 
                             <input
                                 className="field"
                                 type="email"
-                                value={form.email}
+                                value={
+                                    form.email
+                                }
                                 onChange={(e) =>
                                     setForm({
                                         ...form,
@@ -784,11 +1069,14 @@ export default function ProfilePage() {
 
                             </label>
 
+
                             <textarea
                                 className="field"
                                 rows={3}
                                 maxLength={200}
-                                value={form.bio}
+                                value={
+                                    form.bio
+                                }
                                 onChange={(e) =>
                                     setForm({
                                         ...form,
@@ -813,7 +1101,9 @@ export default function ProfilePage() {
                             <button
                                 className="btn btn-primary btn-sm"
                                 disabled={saving}
-                                onClick={handleSave}
+                                onClick={
+                                    handleSave
+                                }
                             >
 
                                 {saving
@@ -826,7 +1116,9 @@ export default function ProfilePage() {
                             <button
                                 className="btn btn-ghost btn-sm"
                                 disabled={saving}
-                                onClick={handleCancel}
+                                onClick={
+                                    handleCancel
+                                }
                             >
 
                                 Cancel
@@ -842,7 +1134,9 @@ export default function ProfilePage() {
                     <>
 
 
-                        {/* NAME + EDIT */}
+                        {/* =========================
+                            NAME + EDIT
+                        ========================= */}
 
                         <div className="profile-title-row">
 
@@ -850,7 +1144,9 @@ export default function ProfilePage() {
 
                                 <div className="profile-name">
 
-                                    {displayUser.fullname}
+                                    {
+                                        displayUser.fullname
+                                    }
 
                                 </div>
 
@@ -863,7 +1159,9 @@ export default function ProfilePage() {
                                     setEditing(true)
                                 }
                             >
+
                                 Edit profile
+
                             </button>
 
                         </div>
@@ -873,7 +1171,10 @@ export default function ProfilePage() {
 
                         <div className="profile-handle">
 
-                            @{displayUser.username}
+                            @
+                            {
+                                displayUser.username
+                            }
 
                         </div>
 
@@ -884,7 +1185,9 @@ export default function ProfilePage() {
 
                             <div className="profile-bio">
 
-                                {displayUser.bio}
+                                {
+                                    displayUser.bio
+                                }
 
                             </div>
 
@@ -908,66 +1211,129 @@ export default function ProfilePage() {
                         </div>
 
 
-                        {/* STATS */}
+                        {/* =========================
+                            STATS
+                        ========================= */}
 
                         <div className="profile-stats-row">
 
-                            <div className="stat-link">
+
+                            {/* POSTS */}
+
+                            <button
+                                type="button"
+                                className="stat-link"
+                                onClick={() =>
+                                    setTab("posts")
+                                }
+                            >
 
                                 <span className="stat-count">
-                                    {myPosts.length}
+
+                                    {
+                                        myPosts.length
+                                    }
+
                                 </span>
 
+
                                 <span className="stat-word">
+
                                     Posts
+
                                 </span>
 
-                            </div>
+                            </button>
 
 
-                            <div className="stat-link">
+                            {/* FOLLOWERS */}
+
+                            <button
+                                type="button"
+                                className="stat-link"
+                                onClick={() =>
+                                    setTab(
+                                        "followers"
+                                    )
+                                }
+                            >
 
                                 <span className="stat-count">
 
-                                    {profile?.followersCount ||
-                                        0}
+                                    {
+                                        profile?.followersCount ??
+                                        followers.length
+                                    }
 
                                 </span>
 
+
                                 <span className="stat-word">
+
                                     Followers
+
                                 </span>
 
-                            </div>
+                            </button>
 
 
-                            <div className="stat-link">
+                            {/* FOLLOWING */}
+
+                            <button
+                                type="button"
+                                className="stat-link"
+                                onClick={() =>
+                                    setTab(
+                                        "following"
+                                    )
+                                }
+                            >
 
                                 <span className="stat-count">
 
-                                    {profile?.followingCount ||
-                                        0}
+                                    {
+                                        profile?.followingCount ??
+                                        following.length
+                                    }
 
                                 </span>
 
+
                                 <span className="stat-word">
+
                                     Following
+
                                 </span>
 
-                            </div>
+                            </button>
 
 
-                            <div className="stat-link">
+                            {/* LIKED */}
+
+                            <button
+                                type="button"
+                                className="stat-link"
+                                onClick={() =>
+                                    setTab("liked")
+                                }
+                            >
 
                                 <span className="stat-count">
-                                    {likedPosts.length}
+
+                                    {
+                                        likedPosts.length
+                                    }
+
                                 </span>
+
 
                                 <span className="stat-word">
+
                                     Liked
+
                                 </span>
 
-                            </div>
+                            </button>
 
                         </div>
 
@@ -984,6 +1350,9 @@ export default function ProfilePage() {
 
             <div className="tab-strip">
 
+
+                {/* POSTS */}
+
                 <button
                     className={`tab-strip-btn${
                         tab === "posts"
@@ -994,9 +1363,53 @@ export default function ProfilePage() {
                         setTab("posts")
                     }
                 >
+
                     Posts
+
                 </button>
 
+
+                {/* FOLLOWERS */}
+
+                <button
+                    className={`tab-strip-btn${
+                        tab === "followers"
+                            ? " active"
+                            : ""
+                    }`}
+                    onClick={() =>
+                        setTab("followers")
+                    }
+                >
+
+                    Followers (
+                    {followers.length}
+                    )
+
+                </button>
+
+
+                {/* FOLLOWING */}
+
+                <button
+                    className={`tab-strip-btn${
+                        tab === "following"
+                            ? " active"
+                            : ""
+                    }`}
+                    onClick={() =>
+                        setTab("following")
+                    }
+                >
+
+                    Following (
+                    {following.length}
+                    )
+
+                </button>
+
+
+                {/* LIKED */}
 
                 <button
                     className={`tab-strip-btn${
@@ -1008,13 +1421,17 @@ export default function ProfilePage() {
                         setTab("liked")
                     }
                 >
+
                     Liked
+
                 </button>
 
             </div>
 
 
-            {/* POSTS */}
+            {/* =========================
+                POSTS
+            ========================= */}
 
             {tab === "posts" && (
 
@@ -1042,7 +1459,213 @@ export default function ProfilePage() {
             )}
 
 
-            {/* LIKED */}
+            {/* =========================
+                FOLLOWERS
+            ========================= */}
+
+            {tab === "followers" && (
+
+                connectionsLoading ? (
+
+                    <div className="feed-loading">
+
+                        Loading followers...
+
+                    </div>
+
+                ) : followers.length === 0 ? (
+
+                    <EmptyState
+                        icon="👥"
+                        title="No followers yet"
+                        sub="People who follow you will appear here."
+                    />
+
+                ) : (
+
+                    <div className="connections-list">
+
+                        {followers.map(
+                            (item, index) => {
+
+                                const person =
+                                    getFollowerUser(
+                                        item
+                                    );
+
+
+                                if (!person) {
+                                    return null;
+                                }
+
+
+                                return (
+
+                                    <div
+                                        key={
+                                            person._id ||
+                                            index
+                                        }
+                                        className="connection-card"
+                                    >
+
+                                        <Avatar
+                                            name={
+                                                person.fullname
+                                            }
+                                            src={
+                                                person.avatar
+                                            }
+                                            size="md"
+                                            onClick={() =>
+                                                openImagePreview(
+                                                    person.avatar
+                                                )
+                                            }
+                                        />
+
+
+                                        <div className="connection-info">
+
+                                            <div className="connection-name">
+
+                                                {
+                                                    person.fullname
+                                                }
+
+                                            </div>
+
+
+                                            <div className="connection-handle">
+
+                                                @
+                                                {
+                                                    person.username
+                                                }
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                );
+
+                            }
+                        )}
+
+                    </div>
+
+                )
+
+            )}
+
+
+            {/* =========================
+                FOLLOWING
+            ========================= */}
+
+            {tab === "following" && (
+
+                connectionsLoading ? (
+
+                    <div className="feed-loading">
+
+                        Loading following...
+
+                    </div>
+
+                ) : following.length === 0 ? (
+
+                    <EmptyState
+                        icon="➕"
+                        title="Not following anyone"
+                        sub="People you follow will appear here."
+                    />
+
+                ) : (
+
+                    <div className="connections-list">
+
+                        {following.map(
+                            (item, index) => {
+
+                                const person =
+                                    getFollowingUser(
+                                        item
+                                    );
+
+
+                                if (!person) {
+                                    return null;
+                                }
+
+
+                                return (
+
+                                    <div
+                                        key={
+                                            person._id ||
+                                            index
+                                        }
+                                        className="connection-card"
+                                    >
+
+                                        <Avatar
+                                            name={
+                                                person.fullname
+                                            }
+                                            src={
+                                                person.avatar
+                                            }
+                                            size="md"
+                                            onClick={() =>
+                                                openImagePreview(
+                                                    person.avatar
+                                                )
+                                            }
+                                        />
+
+
+                                        <div className="connection-info">
+
+                                            <div className="connection-name">
+
+                                                {
+                                                    person.fullname
+                                                }
+
+                                            </div>
+
+
+                                            <div className="connection-handle">
+
+                                                @
+                                                {
+                                                    person.username
+                                                }
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                );
+
+                            }
+                        )}
+
+                    </div>
+
+                )
+
+            )}
+
+
+            {/* =========================
+                LIKED
+            ========================= */}
 
             {tab === "liked" && (
 
@@ -1069,6 +1692,47 @@ export default function ProfilePage() {
 
             )}
 
+
+            {/* =========================
+                FULL IMAGE PREVIEW
+            ========================= */}
+
+            {previewImage && (
+
+                <div
+                    className="image-preview-overlay"
+                    onClick={
+                        closeImagePreview
+                    }
+                >
+
+                    <button
+                        type="button"
+                        className="image-preview-close"
+                        onClick={
+                            closeImagePreview
+                        }
+                        aria-label="Close image"
+                    >
+
+                        ×
+
+                    </button>
+
+
+                    <img
+                        src={previewImage}
+                        alt="Profile preview"
+                        className="image-preview-image"
+                        onClick={(e) =>
+                            e.stopPropagation()
+                        }
+                    />
+
+                </div>
+
+            )}
+
         </div>
 
     );
@@ -1091,12 +1755,18 @@ function EmptyState({
         <div className="empty-state">
 
             <div className="empty-ico">
+
                 {icon}
+
             </div>
 
+
             <div className="empty-title">
+
                 {title}
+
             </div>
+
 
             <div
                 style={{
@@ -1105,7 +1775,9 @@ function EmptyState({
                     marginTop: 4,
                 }}
             >
+
                 {sub}
+
             </div>
 
         </div>

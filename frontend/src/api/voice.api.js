@@ -1,6 +1,5 @@
 import apiClient from "./apiClient";
 
-
 // ========================================
 // PUBLISH VOICE
 // ========================================
@@ -10,38 +9,21 @@ export const publishVoice = async ({
     description,
     voiceFile,
     thumbnail,
-    isAnonymous,
-    communityId,
+    isAnonymous = false,
+    communityId = null,
 }) => {
 
     const formData = new FormData();
 
-    formData.append(
-        "title",
-        title
-    );
-
-    formData.append(
-        "description",
-        description
-    );
-
-    formData.append(
-        "voiceFile",
-        voiceFile
-    );
-
-    formData.append(
-        "thumbnail",
-        thumbnail
-    );
-
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("voiceFile", voiceFile);
+    formData.append("thumbnail", thumbnail);
     formData.append(
         "isAnonymous",
-        isAnonymous
+        String(isAnonymous)
     );
 
-    // Community post ke liye
     if (communityId) {
         formData.append(
             "communityId",
@@ -77,9 +59,25 @@ export const getAllVoices = async (
 };
 
 
-// Alias
-// Agar kisi component me getVoices use ho
+// Backward compatibility
 export const getVoices = getAllVoices;
+
+
+// ========================================
+// GET COMMUNITY VOICES
+// ========================================
+
+export const getCommunityVoices = async (
+    communityId
+) => {
+
+    return apiClient(
+        `/voices/community/${communityId}`,
+        {
+            method: "GET",
+        }
+    );
+};
 
 
 // ========================================
@@ -110,29 +108,21 @@ export const updateVoice = async ({
     thumbnail,
 }) => {
 
-    const formData =
-        new FormData();
+    const formData = new FormData();
 
-
-    if (
-        title !== undefined
-    ) {
+    if (title !== undefined) {
         formData.append(
             "title",
             title
         );
     }
 
-
-    if (
-        description !== undefined
-    ) {
+    if (description !== undefined) {
         formData.append(
             "description",
             description
         );
     }
-
 
     if (thumbnail) {
         formData.append(
@@ -140,7 +130,6 @@ export const updateVoice = async ({
             thumbnail
         );
     }
-
 
     return apiClient(
         `/voices/${voiceId}`,

@@ -24,46 +24,65 @@ export default function FeedPage() {
     // STATES
     // =========================
 
-    const [tab, setTab] = useState("trending");
+    const [tab, setTab] =
+        useState("trending");
 
-    const [voices, setVoices] = useState([]);
+    const [voices, setVoices] =
+        useState([]);
 
-    const [followingUsers, setFollowingUsers] = useState([]);
+    const [followingUsers, setFollowingUsers] =
+        useState([]);
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] =
+        useState(true);
 
-    const [followingLoading, setFollowingLoading] = useState(false);
+    const [followingLoading, setFollowingLoading] =
+        useState(false);
 
-    const [error, setError] = useState("");
+    const [error, setError] =
+        useState("");
 
-    const [page, setPage] = useState(1);
+    const [page, setPage] =
+        useState(1);
 
-    const [totalPages, setTotalPages] = useState(1);
+    const [totalPages, setTotalPages] =
+        useState(1);
 
 
     // =========================
     // FETCH VOICES
     // =========================
 
-    const fetchVoices = async (pageNumber = 1) => {
+    const fetchVoices = async (
+        pageNumber = 1
+    ) => {
 
         try {
 
             setLoading(true);
             setError("");
 
-            const response = await getAllVoices(
-                pageNumber,
-                10
+
+            const response =
+                await getAllVoices(
+                    pageNumber,
+                    10
+                );
+
+
+            const data =
+                response?.data;
+
+
+            setVoices(
+                data?.voices || []
             );
 
-            const data = response?.data;
-
-            setVoices(data?.voices || []);
 
             setPage(
                 data?.page || pageNumber
             );
+
 
             setTotalPages(
                 data?.totalPages || 1
@@ -76,8 +95,9 @@ export default function FeedPage() {
                 error
             );
 
+
             setError(
-                error.message ||
+                error?.message ||
                 "Failed to load voices"
             );
 
@@ -94,57 +114,79 @@ export default function FeedPage() {
     // FETCH FOLLOWING USERS
     // =========================
 
-    const fetchFollowing = async () => {
+    const fetchFollowing =
+        async () => {
 
-        if (!user?._id) return;
+            if (!user?._id) {
+                return;
+            }
 
-        try {
 
-            setFollowingLoading(true);
+            try {
 
-            const response =
-                await getFollowing(user._id);
+                setFollowingLoading(
+                    true
+                );
 
-            const data = response?.data;
 
-            /*
-                Backend response:
+                const response =
+                    await getFollowing(
+                        user._id
+                    );
 
-                data.following = [
-                    {
-                        following: {
-                            _id,
-                            fullname,
-                            username,
-                            avatar
+
+                const data =
+                    response?.data;
+
+
+                /*
+                    Backend response:
+
+                    data.following = [
+                        {
+                            following: {
+                                _id,
+                                fullname,
+                                username,
+                                avatar
+                            }
                         }
-                    }
-                ]
-            */
+                    ]
+                */
 
-            const users =
-                (data?.following || [])
-                    .map(item => item.following)
-                    .filter(Boolean);
 
-            setFollowingUsers(users);
+                const users =
+                    (data?.following || [])
+                        .map(
+                            item =>
+                                item.following
+                        )
+                        .filter(Boolean);
 
-        } catch (error) {
 
-            console.error(
-                "Failed to fetch following users:",
-                error
-            );
+                setFollowingUsers(
+                    users
+                );
 
-            setFollowingUsers([]);
+            } catch (error) {
 
-        } finally {
+                console.error(
+                    "Failed to fetch following users:",
+                    error
+                );
 
-            setFollowingLoading(false);
 
-        }
+                setFollowingUsers([]);
 
-    };
+            } finally {
+
+                setFollowingLoading(
+                    false
+                );
+
+            }
+
+        };
 
 
     // =========================
@@ -165,7 +207,9 @@ export default function FeedPage() {
     useEffect(() => {
 
         if (user?._id) {
+
             fetchFollowing();
+
         }
 
     }, [user?._id]);
@@ -175,149 +219,193 @@ export default function FeedPage() {
     // SEARCH
     // =========================
 
-    const filteredVoices = useMemo(() => {
+    const filteredVoices =
+        useMemo(() => {
 
-        if (!searchQuery.trim()) {
-            return voices;
-        }
+            if (!searchQuery.trim()) {
 
-        const query =
-            searchQuery
-                .toLowerCase()
-                .trim();
+                return voices;
 
-        return voices.filter((voice) => {
+            }
 
-            const title =
-                voice.title
-                    ?.toLowerCase() || "";
 
-            const description =
-                voice.description
-                    ?.toLowerCase() || "";
+            const query =
+                searchQuery
+                    .toLowerCase()
+                    .trim();
 
-            const username =
-                voice.owner?.username
-                    ?.toLowerCase() || "";
 
-            const fullname =
-                voice.owner?.fullname
-                    ?.toLowerCase() || "";
+            return voices.filter(
+                (voice) => {
 
-            return (
-                title.includes(query) ||
-                description.includes(query) ||
-                username.includes(query) ||
-                fullname.includes(query)
+                    const title =
+                        voice.title
+                            ?.toLowerCase() ||
+                        "";
+
+                    const description =
+                        voice.description
+                            ?.toLowerCase() ||
+                        "";
+
+                    const username =
+                        voice.owner?.username
+                            ?.toLowerCase() ||
+                        "";
+
+                    const fullname =
+                        voice.owner?.fullname
+                            ?.toLowerCase() ||
+                        "";
+
+
+                    return (
+                        title.includes(query) ||
+                        description.includes(query) ||
+                        username.includes(query) ||
+                        fullname.includes(query)
+                    );
+
+                }
             );
 
-        });
-
-    }, [
-        voices,
-        searchQuery,
-    ]);
+        }, [
+            voices,
+            searchQuery,
+        ]);
 
 
     // =========================
     // FOLLOWING VOICES
     // =========================
 
-    const followingVoices = useMemo(() => {
+    const followingVoices =
+        useMemo(() => {
 
-        if (!followingUsers.length) {
-            return [];
-        }
+            if (!followingUsers.length) {
 
-        const followingIds =
-            new Set(
-                followingUsers.map(
-                    followingUser =>
-                        followingUser._id?.toString()
-                )
+                return [];
+
+            }
+
+
+            const followingIds =
+                new Set(
+                    followingUsers.map(
+                        followingUser =>
+                            followingUser._id?.toString()
+                    )
+                );
+
+
+            return filteredVoices.filter(
+                voice =>
+                    voice.owner?._id &&
+                    followingIds.has(
+                        voice.owner._id.toString()
+                    )
             );
 
-        return filteredVoices.filter(
-            voice =>
-                voice.owner?._id &&
-                followingIds.has(
-                    voice.owner._id.toString()
-                )
-        );
-
-    }, [
-        filteredVoices,
-        followingUsers,
-    ]);
+        }, [
+            filteredVoices,
+            followingUsers,
+        ]);
 
 
     // =========================
     // SORT
     // =========================
 
-    const sortedVoices = useMemo(() => {
+    const sortedVoices =
+        useMemo(() => {
 
-        let list = [];
+            let list = [];
 
-        // -------------------------
-        // FOLLOWING
-        // -------------------------
 
-        if (tab === "following") {
+            // -------------------------
+            // FOLLOWING
+            // -------------------------
 
-            list = [...followingVoices];
+            if (
+                tab === "following"
+            ) {
+
+                list = [
+                    ...followingVoices
+                ];
+
+
+                return list.sort(
+                    (a, b) =>
+                        new Date(
+                            b.createdAt
+                        ) -
+                        new Date(
+                            a.createdAt
+                        )
+                );
+
+            }
+
+
+            // -------------------------
+            // RECENT
+            // -------------------------
+
+            if (
+                tab === "recent"
+            ) {
+
+                list = [
+                    ...filteredVoices
+                ];
+
+
+                return list.sort(
+                    (a, b) =>
+                        new Date(
+                            b.createdAt
+                        ) -
+                        new Date(
+                            a.createdAt
+                        )
+                );
+
+            }
+
+
+            // -------------------------
+            // TRENDING
+            // -------------------------
+
+            list = [
+                ...filteredVoices
+            ];
+
 
             return list.sort(
-                (a, b) =>
-                    new Date(b.createdAt) -
-                    new Date(a.createdAt)
+                (a, b) => {
+
+                    const scoreA =
+                        (a.likesCount || 0) * 3 +
+                        (a.views || 0);
+
+
+                    const scoreB =
+                        (b.likesCount || 0) * 3 +
+                        (b.views || 0);
+
+
+                    return scoreB - scoreA;
+
+                }
             );
 
-        }
-
-
-        // -------------------------
-        // RECENT
-        // -------------------------
-
-        if (tab === "recent") {
-
-            list = [...filteredVoices];
-
-            return list.sort(
-                (a, b) =>
-                    new Date(b.createdAt) -
-                    new Date(a.createdAt)
-            );
-
-        }
-
-
-        // -------------------------
-        // TRENDING
-        // -------------------------
-
-        list = [...filteredVoices];
-
-        return list.sort((a, b) => {
-
-            const scoreA =
-                (a.likesCount || 0) * 3 +
-                (a.views || 0);
-
-            const scoreB =
-                (b.likesCount || 0) * 3 +
-                (b.views || 0);
-
-            return scoreB - scoreA;
-
-        });
-
-    }, [
-        filteredVoices,
-        followingVoices,
-        tab,
-    ]);
+        }, [
+            filteredVoices,
+            followingVoices,
+            tab,
+        ]);
 
 
     // =========================
@@ -326,32 +414,72 @@ export default function FeedPage() {
 
     const handleLikeChange = (
         voiceId,
-        liked
+        liked,
+        likesCount
     ) => {
 
         setVoices(
             currentVoices =>
+
                 currentVoices.map(
                     voice => {
 
                         if (
                             voice._id !== voiceId
                         ) {
+
                             return voice;
+
                         }
 
+
+                        // --------------------------------
+                        // If backend sends exact count,
+                        // use it.
+                        // --------------------------------
+
+                        if (
+                            typeof likesCount ===
+                            "number"
+                        ) {
+
+                            return {
+                                ...voice,
+                                isLiked: liked,
+                                likesCount:
+                                    Math.max(
+                                        0,
+                                        likesCount
+                                    ),
+                            };
+
+                        }
+
+
+                        // --------------------------------
+                        // Fallback if backend doesn't
+                        // send likesCount.
+                        // --------------------------------
+
                         const currentCount =
-                            voice.likesCount || 0;
+                            Number(
+                                voice.likesCount || 0
+                            );
+
 
                         return {
                             ...voice,
 
-                            likesCount: liked
-                                ? currentCount + 1
-                                : Math.max(
-                                    0,
-                                    currentCount - 1
-                                ),
+                            isLiked:
+                                liked,
+
+                            likesCount:
+                                liked
+                                    ? currentCount + 1
+                                    : Math.max(
+                                        0,
+                                        currentCount - 1
+                                    ),
                         };
 
                     }
@@ -372,7 +500,9 @@ export default function FeedPage() {
             <div className="feed-page">
 
                 <div className="feed-loading">
+
                     Loading voices...
+
                 </div>
 
             </div>
@@ -403,7 +533,9 @@ export default function FeedPage() {
 
                     <input
                         placeholder="Search Wevoc"
-                        value={searchQuery}
+                        value={
+                            searchQuery
+                        }
                         onChange={(e) =>
                             setSearchQuery(
                                 e.target.value
@@ -420,6 +552,7 @@ export default function FeedPage() {
 
                 <div className="tab-strip">
 
+
                     {/* TRENDING */}
 
                     <button
@@ -429,7 +562,9 @@ export default function FeedPage() {
                                 : ""
                         }`}
                         onClick={() =>
-                            setTab("trending")
+                            setTab(
+                                "trending"
+                            )
                         }
                     >
 
@@ -449,7 +584,9 @@ export default function FeedPage() {
                                 : ""
                         }`}
                         onClick={() =>
-                            setTab("following")
+                            setTab(
+                                "following"
+                            )
                         }
                     >
 
@@ -467,7 +604,9 @@ export default function FeedPage() {
                                 : ""
                         }`}
                         onClick={() =>
-                            setTab("recent")
+                            setTab(
+                                "recent"
+                            )
                         }
                     >
 
@@ -523,7 +662,9 @@ export default function FeedPage() {
                 followingLoading && (
 
                     <div className="feed-loading">
+
                         Loading following...
+
                     </div>
 
                 )
@@ -543,6 +684,7 @@ export default function FeedPage() {
                         {tab === "following" ? (
 
                             <>
+
                                 <h3>
                                     No voices from people you follow
                                 </h3>
@@ -551,11 +693,13 @@ export default function FeedPage() {
                                     Follow some people to see
                                     their voice posts here.
                                 </p>
+
                             </>
 
                         ) : (
 
                             <>
+
                                 <h3>
                                     No voices found
                                 </h3>
@@ -564,6 +708,7 @@ export default function FeedPage() {
                                     Be the first person
                                     to share a voice.
                                 </p>
+
                             </>
 
                         )}
@@ -584,8 +729,12 @@ export default function FeedPage() {
                     (voice, index) => (
 
                         <PostCard
-                            key={voice._id}
-                            post={voice}
+                            key={
+                                voice._id
+                            }
+                            post={
+                                voice
+                            }
                             onLikeChange={
                                 handleLikeChange
                             }

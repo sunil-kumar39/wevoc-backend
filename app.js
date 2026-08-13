@@ -10,18 +10,44 @@ import userRouter from "./routes/user.routes.js";
 import historyRouter from "./routes/history.routes.js";
 import dashboardRouter from "./routes/dashboard.routes.js";
 import searchRouter from "./routes/search.routes.js";
+import likeRouter from "./routes/like.routes.js";
 import notificationRouter from "./routes/notification.routes.js";
+import bookmarkRouter from "./routes/bookmark.routes.js";
+import messageRouter from "./routes/message.routes.js";
+import adminRouter from "./routes/admin.routes.js";
+import communityRouter from "./routes/community.routes.js";
 
-const app = express();
+
+const app =
+    express();
+
+
+// =====================================================
+// CORS
+// =====================================================
 
 app.use(
     cors({
-        origin: process.env.CORS_ORIGIN,
-        credentials: true,
+
+        origin:
+            process.env.CORS_ORIGIN,
+
+        credentials:
+            true,
+
     })
 );
 
-app.use(express.json({ limit: "20kb" }));
+
+// =====================================================
+// BODY PARSERS
+// =====================================================
+
+app.use(
+    express.json({
+        limit: "20kb",
+    })
+);
 
 app.use(
     express.urlencoded({
@@ -30,18 +56,100 @@ app.use(
     })
 );
 
-app.use(express.static("public"));
 
-app.use(cookieParser());
+// =====================================================
+// STATIC
+// =====================================================
 
-app.use("/api/v1/voices", voiceRouter);
-app.use("/api/v1/comments", commentRouter);
-app.use("/api/v1/follows", followRouter);
-app.use("/api/v1/playlists", playlistRouter);
-app.use("/api/v1/search", searchRouter);
-app.use("/api/v1/users", userRouter);
-app.use("/api/v1/history", historyRouter);
-app.use("/api/v1/dashboard", dashboardRouter);
-app.use("/api/v1/notifications", notificationRouter);
+app.use(
+    express.static("public")
+);
 
-export { app };
+
+// =====================================================
+// COOKIE
+// =====================================================
+
+app.use(
+    cookieParser()
+);
+
+
+// =====================================================
+// ROUTES
+// =====================================================
+
+app.use(
+    "/api/v1/voices",
+    voiceRouter
+);
+
+app.use(
+    "/api/v1/comments",
+    commentRouter
+);
+
+app.use(
+    "/api/v1/follows",
+    followRouter
+);
+
+app.use(
+    "/api/v1/playlists",
+    playlistRouter
+);
+
+app.use(
+    "/api/v1/search",
+    searchRouter
+);
+
+app.use(
+    "/api/v1/users",
+    userRouter
+);
+
+app.use(
+    "/api/v1/history",
+    historyRouter
+);
+
+app.use(
+    "/api/v1/dashboard",
+    dashboardRouter
+);
+
+app.use(
+    "/api/v1/notifications",
+    notificationRouter
+);
+
+app.use(
+    "/api/v1/likes",
+    likeRouter
+);
+
+app.use(
+    "/api/v1/bookmarks",
+    bookmarkRouter
+);
+
+app.use(
+    "/api/v1/messages",
+    messageRouter
+);
+
+app.use(
+    "/api/v1/admin",
+    adminRouter
+);
+
+app.use(
+    "/api/v1/communities",
+    communityRouter
+);
+
+
+export {
+    app,
+};

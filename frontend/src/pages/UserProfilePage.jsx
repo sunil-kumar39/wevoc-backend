@@ -12,8 +12,12 @@ import {
 
 import { getAllVoices } from "../api/voice.api";
 
-import { fmtDate, timeAgo } from "../utils/helpers";
+import { fmtDate } from "../utils/helpers";
 
+
+// =====================================================
+// USER PROFILE PAGE
+// =====================================================
 
 export default function UserProfilePage() {
 
@@ -24,68 +28,62 @@ export default function UserProfilePage() {
     } = useApp();
 
 
-    // =========================
-    // PROFILE
-    // =========================
+    // =====================================================
+    // PROFILE STATE
+    // =====================================================
 
     const [user, setUser] =
         useState(selectedUser || null);
 
-
     const [loading, setLoading] =
         useState(true);
 
-
     const [followLoading, setFollowLoading] =
         useState(false);
-
 
     const [error, setError] =
         useState("");
 
 
-    // =========================
+    // =====================================================
     // POSTS
-    // =========================
+    // =====================================================
 
     const [posts, setPosts] =
         useState([]);
-
 
     const [postsLoading, setPostsLoading] =
         useState(false);
 
 
-    // =========================
+    // =====================================================
     // TAB
-    // =========================
+    // =====================================================
 
     const [tab, setTab] =
         useState("posts");
 
 
-    // =========================
+    // =====================================================
     // LOAD PROFILE
-    // =========================
+    // =====================================================
 
     const loadProfile = async () => {
 
         if (!selectedUser?._id) {
+            setLoading(false);
             return;
         }
-
 
         try {
 
             setLoading(true);
             setError("");
 
-
             const response =
                 await getUserProfile(
                     selectedUser._id
                 );
-
 
             if (response?.data) {
 
@@ -102,9 +100,8 @@ export default function UserProfilePage() {
                 error
             );
 
-
             setError(
-                error.message ||
+                error?.message ||
                 "Failed to load profile"
             );
 
@@ -113,13 +110,12 @@ export default function UserProfilePage() {
             setLoading(false);
 
         }
-
     };
 
 
-    // =========================
+    // =====================================================
     // LOAD USER POSTS
-    // =========================
+    // =====================================================
 
     const loadPosts = async () => {
 
@@ -127,11 +123,9 @@ export default function UserProfilePage() {
             return;
         }
 
-
         try {
 
             setPostsLoading(true);
-
 
             const response =
                 await getAllVoices(
@@ -139,11 +133,8 @@ export default function UserProfilePage() {
                     100
                 );
 
-
             const voices =
-                response?.data?.voices ||
-                [];
-
+                response?.data?.voices || [];
 
             const userPosts =
                 voices.filter(
@@ -163,11 +154,9 @@ export default function UserProfilePage() {
                     }
                 );
 
-
             setPosts(
                 userPosts
             );
-
 
         } catch (error) {
 
@@ -181,13 +170,12 @@ export default function UserProfilePage() {
             setPostsLoading(false);
 
         }
-
     };
 
 
-    // =========================
+    // =====================================================
     // INITIAL LOAD
-    // =========================
+    // =====================================================
 
     useEffect(() => {
 
@@ -197,9 +185,9 @@ export default function UserProfilePage() {
     }, [selectedUser?._id]);
 
 
-    // =========================
+    // =====================================================
     // FOLLOW / UNFOLLOW
-    // =========================
+    // =====================================================
 
     const handleFollow = async () => {
 
@@ -210,42 +198,24 @@ export default function UserProfilePage() {
             return;
         }
 
-
         try {
 
             setFollowLoading(true);
-
 
             const response =
                 await toggleFollow(
                     user._id
                 );
 
-
-            /*
-             * Backend returns:
-             *
-             * followed
-             * OR
-             * unfollowed
-             *
-             * depending on current state.
-             */
-
-
             const message =
-                response?.message ||
-                "";
+                response?.message || "";
 
+            const messageLower =
+                message.toLowerCase();
 
             const isNowFollowing =
-                message
-                    .toLowerCase()
-                    .includes("followed") &&
-                !message
-                    .toLowerCase()
-                    .includes("unfollowed");
-
+                messageLower.includes("followed") &&
+                !messageLower.includes("unfollowed");
 
             setUser(
                 (current) => {
@@ -254,8 +224,8 @@ export default function UserProfilePage() {
                         return current;
                     }
 
-
                     return {
+
                         ...current,
 
                         isFollowing:
@@ -274,11 +244,11 @@ export default function UserProfilePage() {
                                         : -1
                                 )
                             ),
+
                     };
 
                 }
             );
-
 
         } catch (error) {
 
@@ -287,9 +257,8 @@ export default function UserProfilePage() {
                 error
             );
 
-
             alert(
-                error.message ||
+                error?.message ||
                 "Unable to follow user"
             );
 
@@ -298,13 +267,38 @@ export default function UserProfilePage() {
             setFollowLoading(false);
 
         }
+    };
+
+
+    // =====================================================
+    // MESSAGE
+    // =====================================================
+
+    const handleMessage = () => {
+
+        if (!user?._id) {
+            return;
+        }
+
+        /*
+         * IMPORTANT:
+         * DmsPage expects pageData to be
+         * the actual user object.
+         *
+         * So we pass user directly.
+         */
+
+        navigate(
+            "dms",
+            user
+        );
 
     };
 
 
-    // =========================
+    // =====================================================
     // NO USER
-    // =========================
+    // =====================================================
 
     if (!selectedUser) {
 
@@ -327,9 +321,9 @@ export default function UserProfilePage() {
     }
 
 
-    // =========================
+    // =====================================================
     // LOADING
-    // =========================
+    // =====================================================
 
     if (loading && !user) {
 
@@ -352,9 +346,9 @@ export default function UserProfilePage() {
     }
 
 
-    // =========================
+    // =====================================================
     // ERROR
-    // =========================
+    // =====================================================
 
     if (error && !user) {
 
@@ -379,9 +373,7 @@ export default function UserProfilePage() {
                     style={{
                         marginTop: 12,
                     }}
-                    onClick={
-                        loadProfile
-                    }
+                    onClick={loadProfile}
                 >
                     Try again
                 </button>
@@ -393,14 +385,17 @@ export default function UserProfilePage() {
     }
 
 
+    // =====================================================
+    // RENDER
+    // =====================================================
+
     return (
 
-        <div>
+        <div className="page-anim">
 
-
-            {/* =========================
+            {/* =================================================
                 HEADER
-            ========================= */}
+            ================================================= */}
 
             <div
                 style={{
@@ -414,10 +409,10 @@ export default function UserProfilePage() {
                 <button
                     className="btn btn-ghost btn-sm"
                     onClick={goBack}
+                    type="button"
                 >
                     ←
                 </button>
-
 
                 <div>
 
@@ -429,7 +424,6 @@ export default function UserProfilePage() {
                     >
                         {user.fullname}
                     </div>
-
 
                     <div
                         style={{
@@ -445,12 +439,11 @@ export default function UserProfilePage() {
             </div>
 
 
-            {/* =========================
-                PROFILE INFO
-            ========================= */}
+            {/* =================================================
+                PROFILE
+            ================================================= */}
 
             <div className="profile-info-wrap">
-
 
                 {/* Avatar */}
 
@@ -469,7 +462,7 @@ export default function UserProfilePage() {
                 </div>
 
 
-                {/* Name + Follow */}
+                {/* Name + Actions */}
 
                 <div
                     className="profile-title-row"
@@ -478,44 +471,61 @@ export default function UserProfilePage() {
                     <div>
 
                         <div className="profile-name">
-
                             {user.fullname}
-
                         </div>
 
-
                         <div className="profile-handle">
-
                             @{user.username}
-
                         </div>
 
                     </div>
 
 
-                    <button
-                        className={
-                            user.isFollowing
-                                ? "btn btn-secondary btn-sm"
-                                : "btn btn-primary btn-sm"
-                        }
-                        onClick={
-                            handleFollow
-                        }
-                        disabled={
-                            followLoading
-                        }
+                    {/* ACTION BUTTONS */}
+
+                    <div
+                        style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                        }}
                     >
 
-                        {followLoading
+                        {/* MESSAGE */}
 
-                            ? "..."
+                        <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            onClick={handleMessage}
+                        >
+                            💬 Message
+                        </button>
 
-                            : user.isFollowing
-                                ? "Following"
-                                : "Follow"}
 
-                    </button>
+                        {/* FOLLOW */}
+
+                        <button
+                            type="button"
+                            className={
+                                user.isFollowing
+                                    ? "btn btn-secondary btn-sm"
+                                    : "btn btn-primary btn-sm"
+                            }
+                            onClick={handleFollow}
+                            disabled={followLoading}
+                        >
+
+                            {followLoading
+                                ? "..."
+                                : user.isFollowing
+                                    ? "Following"
+                                    : "Follow"
+                            }
+
+                        </button>
+
+                    </div>
 
                 </div>
 
@@ -524,9 +534,7 @@ export default function UserProfilePage() {
 
                 {user.bio && (
 
-                    <div
-                        className="profile-bio"
-                    >
+                    <div className="profile-bio">
                         {user.bio}
                     </div>
 
@@ -547,7 +555,8 @@ export default function UserProfilePage() {
                             ? fmtDate(
                                 user.createdAt
                             )
-                            : "Recently"}
+                            : "Recently"
+                        }
 
                     </div>
 
@@ -563,15 +572,11 @@ export default function UserProfilePage() {
                     <div className="stat-link">
 
                         <span className="stat-count">
-
                             {posts.length}
-
                         </span>
 
                         <span className="stat-word">
-
                             Posts
-
                         </span>
 
                     </div>
@@ -580,16 +585,11 @@ export default function UserProfilePage() {
                     <div className="stat-link">
 
                         <span className="stat-count">
-
-                            {user.followersCount ||
-                                0}
-
+                            {user.followersCount || 0}
                         </span>
 
                         <span className="stat-word">
-
                             Followers
-
                         </span>
 
                     </div>
@@ -598,16 +598,11 @@ export default function UserProfilePage() {
                     <div className="stat-link">
 
                         <span className="stat-count">
-
-                            {user.followingCount ||
-                                0}
-
+                            {user.followingCount || 0}
                         </span>
 
                         <span className="stat-word">
-
                             Following
-
                         </span>
 
                     </div>
@@ -617,35 +612,41 @@ export default function UserProfilePage() {
             </div>
 
 
-            {/* =========================
+            {/* =================================================
                 TABS
-            ========================= */}
+            ================================================= */}
 
             <div className="tab-strip">
 
                 <button
-                    className={`tab-strip-btn${
-                        tab === "posts"
-                            ? " active"
-                            : ""
-                    }`}
+                    className={
+                        `tab-strip-btn${
+                            tab === "posts"
+                                ? " active"
+                                : ""
+                        }`
+                    }
                     onClick={() =>
                         setTab("posts")
                     }
+                    type="button"
                 >
                     Posts
                 </button>
 
 
                 <button
-                    className={`tab-strip-btn${
-                        tab === "liked"
-                            ? " active"
-                            : ""
-                    }`}
-                    onClick={() =>
-                        setTab("liked")
+                    className={
+                        `tab-strip-btn${
+                            tab === "about"
+                                ? " active"
+                                : ""
+                        }`
                     }
+                    onClick={() =>
+                        setTab("about")
+                    }
+                    type="button"
                 >
                     About
                 </button>
@@ -653,9 +654,9 @@ export default function UserProfilePage() {
             </div>
 
 
-            {/* =========================
+            {/* =================================================
                 POSTS
-            ========================= */}
+            ================================================= */}
 
             {tab === "posts" && (
 
@@ -663,9 +664,7 @@ export default function UserProfilePage() {
 
                     {postsLoading ? (
 
-                        <div
-                            className="empty-state"
-                        >
+                        <div className="empty-state">
 
                             <div className="empty-ico">
                                 🎙
@@ -679,9 +678,7 @@ export default function UserProfilePage() {
 
                     ) : posts.length === 0 ? (
 
-                        <div
-                            className="empty-state"
-                        >
+                        <div className="empty-state">
 
                             <div className="empty-ico">
                                 🎙
@@ -692,8 +689,8 @@ export default function UserProfilePage() {
                             </div>
 
                             <div className="empty-sub">
-                                This user hasn't
-                                published any voices yet.
+                                This user hasn't published
+                                any voices yet.
                             </div>
 
                         </div>
@@ -722,15 +719,13 @@ export default function UserProfilePage() {
             )}
 
 
-            {/* =========================
+            {/* =================================================
                 ABOUT
-            ========================= */}
+            ================================================= */}
 
-            {tab === "liked" && (
+            {tab === "about" && (
 
-                <div
-                    className="empty-state"
-                >
+                <div className="empty-state">
 
                     <div className="empty-ico">
                         👤

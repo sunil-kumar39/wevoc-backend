@@ -39,20 +39,19 @@ const messageSchema = new Schema(
     }
 );
 
-
-// Fast conversation queries
+// Sender -> Receiver conversation
 messageSchema.index({
     sender: 1,
     receiver: 1,
     createdAt: -1,
 });
 
+// Receiver -> Sender conversation
 messageSchema.index({
     receiver: 1,
     sender: 1,
     createdAt: -1,
 });
-
 
 export const Message = mongoose.model(
     "Message",

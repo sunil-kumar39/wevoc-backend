@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 
 import Avatar from "../components/Avatar";
 
@@ -13,15 +17,31 @@ import {
     getConversations,
     getMessagesWithUser,
     sendVoiceMessage,
+    markMessagesAsRead,
 } from "../api/message.api";
 
+import {
+    socket,
+    connectSocket,
+    disconnectSocket,
+} from "../socket";
+
 import { timeAgo } from "../utils/helpers";
+
 import { useApp } from "../context/AppContext";
 
 
+// =====================================================
+// DMS PAGE
+// =====================================================
+
 export default function DmsPage() {
 
-    const { user: currentUser } = useApp();
+    const {
+        user: currentUser,
+        pageData,
+    } = useApp();
+
 
     const [threads, setThreads] =
         useState([]);
@@ -36,9 +56,25 @@ export default function DmsPage() {
         useState(true);
 
 
-    // =========================================
+    const activeRef =
+        useRef(null);
+
+
+    // =====================================================
+    // KEEP ACTIVE CHAT REF UPDATED
+    // =====================================================
+
+    useEffect(() => {
+
+        activeRef.current =
+            active;
+
+    }, [active]);
+
+
+    // =====================================================
     // LOAD CONVERSATIONS
-    // =========================================
+    // =====================================================
 
     useEffect(() => {
 
@@ -77,38 +113,598 @@ export default function DmsPage() {
     }, []);
 
 
-    // =========================================
-    // SEARCH
-    // =========================================
+    // =====================================================
+    // OPEN DIRECT CHAT FROM PROFILE
+    // =====================================================
 
-    const shownThreads =
-        threads.filter(thread => {
+    useEffect(() => {
 
-            const name =
-                thread.user?.fullname
-                    ?.toLowerCase() || "";
+        /*
+         * IMPORTANT
+         *
+         * UserProfilePage now sends:
+         *
+         * navigate("dms", user)
+         *
+         * Therefore pageData itself is the user.
+         */
 
-            const username =
-                thread.user?.username
-                    ?.toLowerCase() || "";
+        const userId =
+            pageData?._id;
 
-            const query =
-                search.toLowerCase();
 
-            return (
-                name.includes(query) ||
-                username.includes(query)
+        if (
+            !userId ||
+            !currentUser?._id
+        ) {
+            return;
+        }
+
+
+        // Don't open own chat
+
+        if (
+            String(userId) ===
+            String(currentUser._id)
+        ) {
+            return;
+        }
+
+
+        const openDirectChat =
+            async () => {
+
+                try {
+
+                    const response =
+                        await getMessagesWithUser(
+                            userId
+                        );
+
+
+                    const chatUser =
+                        response?.data?.user ||
+                        pageData ||
+                        null;
+
+
+                    const messages =
+                        response?.data?.messages ||
+                        [];
+
+
+                    if (!chatUser?._id) {
+
+                        console.error(
+                            "Chat user not found"
+                        );
+
+                        return;
+
+                    }
+
+
+                    // Open chat
+
+                    setActive({
+
+                        user:
+                            chatUser,
+
+                        messages:
+                            messages,
+
+                    });
+
+
+                    // Mark messages read
+
+                    try {
+
+                        await markMessagesAsRead(
+                            userId
+                        );
+
+                    } catch (readError) {
+
+                        console.error(
+                            "Mark read error:",
+                            readError
+                        );
+
+                    }
+
+
+                    // Clear unread count
+                    // if conversation exists
+
+                    setThreads(
+                        previous =>
+                            previous.map(
+                                thread =>
+
+                                    String(
+                                        thread.user?._id
+                                    ) ===
+                                    String(userId)
+
+                                        ? {
+                                            ...thread,
+                                            unreadCount: 0,
+                                        }
+
+                                        : thread
+                            )
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "Failed to open direct chat:",
+                        error
+                    );
+
+                }
+
+            };
+
+
+        openDirectChat();
+
+    }, [
+        pageData?._id,
+        currentUser?._id,
+    ]);
+
+
+    // =====================================================
+    // SOCKET CONNECTION
+    // =====================================================
+
+    useEffect(() => {
+
+        if (!currentUser?._id) {
+            return;
+        }
+
+
+        connectSocket();
+
+
+        // =================================================
+        // NEW MESSAGE
+        // =================================================
+
+        const handleNewMessage =
+            (message) => {
+
+                if (!message?._id) {
+                    return;
+                }
+
+
+                const senderId =
+                    message.sender?._id ||
+                    message.sender;
+
+
+                const receiverId =
+                    message.receiver?._id ||
+                    message.receiver;
+
+
+                const currentUserId =
+                    String(
+                        currentUser._id
+                    );
+
+
+                const senderIdString =
+                    senderId?.toString();
+
+
+                const receiverIdString =
+                    receiverId?.toString();
+
+
+                if (
+                    !senderIdString ||
+                    !receiverIdString
+                ) {
+                    return;
+                }
+
+
+                // Current user must be involved
+
+                if (
+                    senderIdString !==
+                        currentUserId &&
+                    receiverIdString !==
+                        currentUserId
+                ) {
+                    return;
+                }
+
+
+                // We only process
+                // incoming socket messages
+
+                if (
+                    receiverIdString !==
+                    currentUserId
+                ) {
+                    return;
+                }
+
+
+                const currentActive =
+                    activeRef.current;
+
+
+                const activeUserId =
+                    currentActive
+                        ?.user?._id
+                        ?.toString();
+
+
+                // =================================================
+                // ACTIVE CHAT
+                // =================================================
+
+                if (
+                    activeUserId &&
+                    senderIdString ===
+                        activeUserId
+                ) {
+
+                    setActive(
+                        previous => {
+
+                            if (!previous) {
+                                return previous;
+                            }
+
+
+                            const alreadyExists =
+                                previous.messages.some(
+                                    item =>
+                                        String(
+                                            item._id
+                                        ) ===
+                                        String(
+                                            message._id
+                                        )
+                                );
+
+
+                            if (
+                                alreadyExists
+                            ) {
+                                return previous;
+                            }
+
+
+                            return {
+
+                                ...previous,
+
+                                messages: [
+                                    ...previous.messages,
+                                    message,
+                                ],
+
+                            };
+
+                        }
+                    );
+
+
+                    markMessagesAsRead(
+                        senderIdString
+                    ).catch(
+                        error => {
+
+                            console.error(
+                                "Failed to mark message as read:",
+                                error
+                            );
+
+                        }
+                    );
+
+
+                    setThreads(
+                        previous =>
+                            previous.map(
+                                item =>
+
+                                    String(
+                                        item.user?._id
+                                    ) ===
+                                    senderIdString
+
+                                        ? {
+                                            ...item,
+                                            unreadCount: 0,
+                                        }
+
+                                        : item
+                            )
+                    );
+
+
+                    return;
+
+                }
+
+
+                // =================================================
+                // MESSAGE FROM OTHER USER
+                // =================================================
+
+                const incomingUser =
+                    message.sender;
+
+
+                if (
+                    !incomingUser?._id
+                ) {
+                    return;
+                }
+
+
+                const incomingUserId =
+                    incomingUser._id.toString();
+
+
+                setThreads(
+                    previous => {
+
+                        const existingIndex =
+                            previous.findIndex(
+                                item =>
+                                    String(
+                                        item.user?._id
+                                    ) ===
+                                    incomingUserId
+                            );
+
+
+                        // =================================================
+                        // NEW CONVERSATION
+                        // =================================================
+
+                        if (
+                            existingIndex === -1
+                        ) {
+
+                            return [
+
+                                {
+                                    user:
+                                        incomingUser,
+
+                                    lastMessage: {
+
+                                        _id:
+                                            message._id,
+
+                                        voiceFile:
+                                            message.voiceFile,
+
+                                        duration:
+                                            message.duration,
+
+                                        createdAt:
+                                            message.createdAt,
+
+                                        sender:
+                                            senderId,
+
+                                        isRead:
+                                            false,
+
+                                    },
+
+                                    unreadCount:
+                                        1,
+
+                                },
+
+                                ...previous,
+
+                            ];
+
+                        }
+
+
+                        // =================================================
+                        // UPDATE EXISTING
+                        // =================================================
+
+                        const updated =
+                            [
+                                ...previous,
+                            ];
+
+
+                        const oldThread =
+                            updated[
+                                existingIndex
+                            ];
+
+
+                        const updatedThread = {
+
+                            ...oldThread,
+
+                            user:
+                                incomingUser,
+
+                            lastMessage: {
+
+                                _id:
+                                    message._id,
+
+                                voiceFile:
+                                    message.voiceFile,
+
+                                duration:
+                                    message.duration,
+
+                                createdAt:
+                                    message.createdAt,
+
+                                sender:
+                                    senderId,
+
+                                isRead:
+                                    false,
+
+                            },
+
+                            unreadCount:
+                                (
+                                    oldThread.unreadCount ||
+                                    0
+                                ) + 1,
+
+                        };
+
+
+                        updated.splice(
+                            existingIndex,
+                            1
+                        );
+
+
+                        return [
+                            updatedThread,
+                            ...updated,
+                        ];
+
+                    }
+                );
+
+            };
+
+
+        // =================================================
+        // MESSAGES READ
+        // =================================================
+
+        const handleMessagesRead =
+            ({ userId }) => {
+
+                if (!userId) {
+                    return;
+                }
+
+
+                setThreads(
+                    previous =>
+                        previous.map(
+                            item =>
+
+                                String(
+                                    item.user?._id
+                                ) ===
+                                String(userId)
+
+                                    ? {
+                                        ...item,
+                                        unreadCount: 0,
+                                    }
+
+                                    : item
+                        )
+                );
+
+            };
+
+
+        socket.on(
+            "message:new",
+            handleNewMessage
+        );
+
+
+        socket.on(
+            "messages:read",
+            handleMessagesRead
+        );
+
+
+        return () => {
+
+            socket.off(
+                "message:new",
+                handleNewMessage
             );
 
-        });
+
+            socket.off(
+                "messages:read",
+                handleMessagesRead
+            );
 
 
-    // =========================================
-    // OPEN CHAT
-    // =========================================
+            disconnectSocket();
+
+        };
+
+    }, [
+        currentUser?._id,
+    ]);
+
+
+    // =====================================================
+    // SEARCH
+    // =====================================================
+
+    const shownThreads =
+        threads.filter(
+            thread => {
+
+                const name =
+                    thread.user?.fullname
+                        ?.toLowerCase() || "";
+
+
+                const username =
+                    thread.user?.username
+                        ?.toLowerCase() || "";
+
+
+                const query =
+                    search
+                        .toLowerCase()
+                        .trim();
+
+
+                return (
+                    name.includes(query) ||
+                    username.includes(query)
+                );
+
+            }
+        );
+
+
+    // =====================================================
+    // OPEN EXISTING CHAT
+    // =====================================================
 
     const openChat =
         async (thread) => {
+
+            if (
+                !thread?.user?._id
+            ) {
+                return;
+            }
+
 
             try {
 
@@ -118,33 +714,61 @@ export default function DmsPage() {
                     );
 
 
+                const user =
+                    response?.data?.user ||
+                    thread.user;
+
+
+                const messages =
+                    response?.data?.messages ||
+                    [];
+
+
                 setActive({
 
-                    user:
-                        response?.data?.user ||
-                        thread.user,
+                    user,
 
-                    messages:
-                        response?.data?.messages ||
-                        [],
+                    messages,
 
                 });
 
 
-                // Remove unread count locally
                 setThreads(
                     previous =>
-                        previous.map(item =>
-                            item.user?._id ===
-                            thread.user?._id
-                                ? {
-                                    ...item,
-                                    unreadCount: 0,
-                                }
-                                : item
+                        previous.map(
+                            item =>
+
+                                String(
+                                    item.user?._id
+                                ) ===
+                                String(
+                                    thread.user?._id
+                                )
+
+                                    ? {
+                                        ...item,
+                                        unreadCount: 0,
+                                    }
+
+                                    : item
                         )
                 );
 
+
+                try {
+
+                    await markMessagesAsRead(
+                        thread.user._id
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "Failed to mark messages as read:",
+                        error
+                    );
+
+                }
 
             } catch (error) {
 
@@ -158,9 +782,9 @@ export default function DmsPage() {
         };
 
 
-    // =========================================
+    // =====================================================
     // LOADING
-    // =========================================
+    // =====================================================
 
     if (loading) {
 
@@ -181,10 +805,11 @@ export default function DmsPage() {
                             <input
                                 placeholder="Search messages"
                                 value={search}
-                                onChange={e =>
-                                    setSearch(
-                                        e.target.value
-                                    )
+                                onChange={
+                                    e =>
+                                        setSearch(
+                                            e.target.value
+                                        )
                                 }
                             />
 
@@ -212,9 +837,9 @@ export default function DmsPage() {
     }
 
 
-    // =========================================
+    // =====================================================
     // ACTIVE CHAT
-    // =========================================
+    // =====================================================
 
     if (active) {
 
@@ -222,17 +847,20 @@ export default function DmsPage() {
 
             <ChatView
 
-                currentUser={currentUser}
-                user={active.user}
+                currentUser={
+                    currentUser
+                }
+
+                user={
+                    active.user
+                }
 
                 initialMessages={
                     active.messages
                 }
 
                 onBack={() => {
-
                     setActive(null);
-
                 }}
 
             />
@@ -242,9 +870,9 @@ export default function DmsPage() {
     }
 
 
-    // =========================================
+    // =====================================================
     // DM LIST
-    // =========================================
+    // =====================================================
 
     return (
 
@@ -263,10 +891,11 @@ export default function DmsPage() {
                         <input
                             placeholder="Search messages"
                             value={search}
-                            onChange={e =>
-                                setSearch(
-                                    e.target.value
-                                )
+                            onChange={
+                                e =>
+                                    setSearch(
+                                        e.target.value
+                                    )
                             }
                         />
 
@@ -276,10 +905,6 @@ export default function DmsPage() {
 
             </div>
 
-
-            {/* =================================
-                CONVERSATIONS
-            ================================= */}
 
             {shownThreads.length === 0 ? (
 
@@ -294,8 +919,11 @@ export default function DmsPage() {
                     </div>
 
                     <div className="empty-sub">
-                        Start a conversation with someone
-                        you follow.
+
+                        Open someone's profile and
+                        press <b>💬 Message</b> to
+                        start a conversation.
+
                     </div>
 
                 </div>
@@ -308,8 +936,14 @@ export default function DmsPage() {
                         const person =
                             thread.user;
 
+
                         const last =
                             thread.lastMessage;
+
+
+                        if (!person?._id) {
+                            return null;
+                        }
 
 
                         return (
@@ -340,18 +974,13 @@ export default function DmsPage() {
                                 <div className="dm-info">
 
                                     <div className="dm-name">
-
                                         {
                                             person.fullname
                                         }
-
                                     </div>
 
-
                                     <div className="dm-preview">
-
                                         🎙 Voice message
-
                                     </div>
 
                                 </div>
@@ -359,31 +988,37 @@ export default function DmsPage() {
 
                                 <div className="dm-meta">
 
-                                    {last?.createdAt && (
+                                    {
+                                        last?.createdAt && (
 
-                                        <span className="dm-time">
+                                            <span className="dm-time">
 
-                                            {timeAgo(
-                                                last.createdAt
-                                            )}
+                                                {
+                                                    timeAgo(
+                                                        last.createdAt
+                                                    )
+                                                }
 
-                                        </span>
+                                            </span>
 
-                                    )}
+                                        )
+                                    }
 
 
-                                    {thread.unreadCount >
-                                        0 && (
+                                    {
+                                        thread.unreadCount >
+                                            0 && (
 
-                                        <span className="dm-unread-badge">
+                                            <span className="dm-unread-badge">
 
-                                            {
-                                                thread.unreadCount
-                                            }
+                                                {
+                                                    thread.unreadCount
+                                                }
 
-                                        </span>
+                                            </span>
 
-                                    )}
+                                        )
+                                    }
 
                                 </div>
 
@@ -415,319 +1050,366 @@ function ChatView({
 }) {
 
     const [messages, setMessages] =
-        useState(initialMessages);
-
+        useState(
+            initialMessages || []
+        );
 
     const [recording, setRecording] =
         useState(false);
 
-
-    const [mediaRecorder, setMediaRecorder] =
-        useState(null);
-
-
-    const [recordingSeconds, setRecordingSeconds] =
-        useState(0);
-
-
     const [sending, setSending] =
         useState(false);
 
-
-    const [playingId, setPlayingId] =
+    const [audioBlob, setAudioBlob] =
         useState(null);
 
+    const [audioUrl, setAudioUrl] =
+        useState("");
 
-    // =========================================
-    // RECORDING TIMER
-    // =========================================
+    const mediaRecorderRef =
+        useRef(null);
+
+    const chunksRef =
+        useRef([]);
+
+
+    // =====================================================
+    // SYNC INITIAL MESSAGES
+    // =====================================================
 
     useEffect(() => {
 
-        if (!recording) {
+        setMessages(
+            initialMessages || []
+        );
 
-            setRecordingSeconds(0);
+    }, [initialMessages]);
 
-            return;
+
+    // =====================================================
+    // RECORD VOICE
+    // =====================================================
+
+    const startRecording = async () => {
+
+        try {
+
+            const stream =
+                await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                });
+
+
+            const recorder =
+                new MediaRecorder(stream);
+
+
+            mediaRecorderRef.current =
+                recorder;
+
+
+            chunksRef.current =
+                [];
+
+
+            recorder.ondataavailable =
+                (event) => {
+
+                    if (
+                        event.data &&
+                        event.data.size > 0
+                    ) {
+
+                        chunksRef.current.push(
+                            event.data
+                        );
+
+                    }
+
+                };
+
+
+            recorder.onstop =
+                () => {
+
+                    const blob =
+                        new Blob(
+                            chunksRef.current,
+                            {
+                                type:
+                                    "audio/webm",
+                            }
+                        );
+
+
+                    setAudioBlob(
+                        blob
+                    );
+
+
+                    setAudioUrl(
+                        URL.createObjectURL(
+                            blob
+                        )
+                    );
+
+
+                    stream
+                        .getTracks()
+                        .forEach(
+                            track =>
+                                track.stop()
+                        );
+
+                };
+
+
+            recorder.start();
+
+            setRecording(true);
+
+        } catch (error) {
+
+            console.error(
+                "Microphone error:",
+                error
+            );
+
+            alert(
+                "Microphone permission is required."
+            );
 
         }
 
-
-        const interval =
-            setInterval(() => {
-
-                setRecordingSeconds(
-                    seconds => seconds + 1
-                );
-
-            }, 1000);
+    };
 
 
-        return () =>
-            clearInterval(interval);
-
-    }, [recording]);
-
-
-    // =========================================
-    // START RECORDING
-    // =========================================
-
-    const startRecording =
-        async () => {
-
-            try {
-
-                const stream =
-                    await navigator.mediaDevices
-                        .getUserMedia({
-                            audio: true,
-                        });
-
-
-                const recorder =
-                    new MediaRecorder(
-                        stream
-                    );
-
-
-                const chunks = [];
-
-
-                recorder.ondataavailable =
-                    event => {
-
-                        if (
-                            event.data.size > 0
-                        ) {
-
-                            chunks.push(
-                                event.data
-                            );
-
-                        }
-
-                    };
-
-
-                recorder.onstop =
-                    async () => {
-
-                        stream
-                            .getTracks()
-                            .forEach(
-                                track =>
-                                    track.stop()
-                            );
-
-
-                        const blob =
-                            new Blob(
-                                chunks,
-                                {
-                                    type:
-                                        recorder
-                                            .mimeType ||
-                                        "audio/webm",
-                                }
-                            );
-
-
-                        const file =
-                            new File(
-                                [blob],
-                                `voice-${Date.now()}.webm`,
-                                {
-                                    type:
-                                        blob.type,
-                                }
-                            );
-
-
-                        await sendMessage(
-                            file
-                        );
-
-                    };
-
-
-                recorder.start();
-
-                setMediaRecorder(
-                    recorder
-                );
-
-                setRecording(true);
-
-            } catch (error) {
-
-                console.error(
-                    "Microphone error:",
-                    error
-                );
-
-                alert(
-                    "Microphone permission is required."
-                );
-
-            }
-
-        };
-
-
-    // =========================================
+    // =====================================================
     // STOP RECORDING
-    // =========================================
+    // =====================================================
 
-    const stopRecording =
-        () => {
+    const stopRecording = () => {
 
-            if (
-                mediaRecorder &&
-                mediaRecorder.state !==
-                    "inactive"
-            ) {
+        if (
+            mediaRecorderRef.current &&
+            mediaRecorderRef.current.state !==
+                "inactive"
+        ) {
 
-                mediaRecorder.stop();
+            mediaRecorderRef.current.stop();
+
+        }
+
+        setRecording(false);
+
+    };
+
+
+    // =====================================================
+    // CANCEL RECORDING
+    // =====================================================
+
+    const cancelRecording = () => {
+
+        setRecording(false);
+
+        setAudioBlob(null);
+
+        if (audioUrl) {
+
+            URL.revokeObjectURL(
+                audioUrl
+            );
+
+        }
+
+        setAudioUrl("");
+
+    };
+
+
+    // =====================================================
+    // SEND VOICE
+    // =====================================================
+
+    const handleSend = async () => {
+
+        if (
+            !audioBlob ||
+            !user?._id ||
+            sending
+        ) {
+            return;
+        }
+
+
+        try {
+
+            setSending(true);
+
+
+            const file =
+                new File(
+                    [audioBlob],
+                    `voice-${Date.now()}.webm`,
+                    {
+                        type:
+                            audioBlob.type ||
+                            "audio/webm",
+                    }
+                );
+
+
+            const response =
+                await sendVoiceMessage(
+                    user._id,
+                    file
+                );
+
+
+            const newMessage =
+                response?.data;
+
+
+            if (newMessage?._id) {
+
+                setMessages(
+                    previous => [
+                        ...previous,
+                        newMessage,
+                    ]
+                );
 
             }
 
-            setRecording(false);
 
-            setMediaRecorder(null);
+            cancelRecording();
 
-        };
+        } catch (error) {
 
+            console.error(
+                "Send voice message error:",
+                error
+            );
 
-    // =========================================
-    // SEND MESSAGE
-    // =========================================
+            alert(
+                error?.message ||
+                "Failed to send voice message"
+            );
 
-    const sendMessage =
-        async (file) => {
+        } finally {
 
-            try {
+            setSending(false);
 
-                setSending(true);
+        }
 
-
-                const response =
-                    await sendVoiceMessage(
-                        user._id,
-                        file
-                    );
+    };
 
 
-                const newMessage =
-                    response?.data;
-
-
-                if (newMessage) {
-
-                    setMessages(
-                        previous => [
-                            ...previous,
-                            newMessage,
-                        ]
-                    );
-
-                }
-
-            } catch (error) {
-
-                console.error(
-                    "Send voice message error:",
-                    error
-                );
-
-                alert(
-                    error.message ||
-                    "Failed to send voice message"
-                );
-
-            } finally {
-
-                setSending(false);
-
-            }
-
-        };
-
-
-    // =========================================
+    // =====================================================
     // FORMAT DURATION
-    // =========================================
+    // =====================================================
 
     const formatDuration =
-        seconds => {
+        (seconds) => {
 
-            const mins =
-                Math.floor(
-                    seconds / 60
+            const total =
+                Math.max(
+                    0,
+                    Math.round(
+                        Number(seconds) || 0
+                    )
                 );
 
-            const secs =
-                seconds % 60;
 
-            return `${mins}:${secs
-                .toString()
-                .padStart(2, "0")}`;
+            const minutes =
+                Math.floor(
+                    total / 60
+                );
+
+
+            const secs =
+                total % 60;
+
+
+            return `${minutes}:${String(
+                secs
+            ).padStart(2, "0")}`;
 
         };
 
 
-    // =========================================
-    // RENDER
-    // =========================================
+    // =====================================================
+    // CHAT UI
+    // =====================================================
 
     return (
 
-        <div className="chat-view">
+        <div
+            className="page-anim"
+            style={{
+                minHeight: "100%",
+                display: "flex",
+                flexDirection: "column",
+            }}
+        >
 
+            {/* HEADER */}
 
-            {/* TOP BAR */}
+            <div className="feed-header dm-header">
 
-            <div className="feed-header">
-
-                <div className="chat-topbar">
+                <div
+                    className="feed-header-inner"
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                    }}
+                >
 
                     <button
-                        className="back-btn"
+                        type="button"
+                        className="btn btn-ghost btn-sm"
                         onClick={onBack}
                     >
-                        Back
+                        ←
                     </button>
 
 
                     <Avatar
                         name={
-                            user.fullname
+                            user?.fullname
                         }
                         src={
-                            user.avatar
+                            user?.avatar
                         }
-                        size="sm"
+                        size="md"
                     />
 
 
-                    <div className="chat-topbar-info">
+                    <div>
 
-                        <div className="chat-topbar-name">
-
+                        <div
+                            style={{
+                                fontWeight: 700,
+                            }}
+                        >
                             {
-                                user.fullname
+                                user?.fullname
                             }
-
                         </div>
 
-
-                        <div className="chat-topbar-sub">
-
+                        <div
+                            style={{
+                                fontSize: 12,
+                                color:
+                                    "var(--ink3)",
+                            }}
+                        >
                             @
                             {
-                                user.username
+                                user?.username
                             }
-
                         </div>
 
                     </div>
@@ -739,22 +1421,38 @@ function ChatView({
 
             {/* MESSAGES */}
 
-            <div className="chat-messages">
+            <div
+                style={{
+                    flex: 1,
+                    padding: "20px 16px",
+                    overflowY: "auto",
+                }}
+            >
 
                 {messages.length === 0 ? (
 
                     <div
+                        className="empty-state"
                         style={{
-                            textAlign:
-                                "center",
-                            padding: 30,
-                            color:
-                                "var(--ink3)",
+                            minHeight: 300,
                         }}
                     >
-                        No messages yet.
-                        <br />
-                        Send the first voice.
+
+                        <div className="empty-ico">
+                            🎙
+                        </div>
+
+                        <div className="empty-title">
+                            Start the conversation
+                        </div>
+
+                        <div className="empty-sub">
+                            Send a voice message to{" "}
+                            {
+                                user?.fullname
+                            }.
+                        </div>
+
                     </div>
 
                 ) : (
@@ -767,30 +1465,83 @@ function ChatView({
                                 message.sender;
 
 
-                            const mine =
-                                String(senderId) ===
-                                String(currentUser?._id);
+                            const isMine =
+                                String(
+                                    senderId
+                                ) ===
+                                String(
+                                    currentUser?._id
+                                );
 
 
                             return (
 
-                                <VoiceMessage
+                                <div
                                     key={
                                         message._id
                                     }
-                                    message={
-                                        message
-                                    }
-                                    mine={
-                                        mine
-                                    }
-                                    playingId={
-                                        playingId
-                                    }
-                                    setPlayingId={
-                                        setPlayingId
-                                    }
-                                />
+                                    style={{
+                                        display:
+                                            "flex",
+                                        justifyContent:
+                                            isMine
+                                                ? "flex-end"
+                                                : "flex-start",
+                                        marginBottom:
+                                            12,
+                                    }}
+                                >
+
+                                    <div
+                                        style={{
+                                            maxWidth:
+                                                "75%",
+                                            padding:
+                                                12,
+                                            borderRadius:
+                                                14,
+                                            background:
+                                                isMine
+                                                    ? "var(--accent)"
+                                                    : "var(--paper2)",
+                                            color:
+                                                isMine
+                                                    ? "#fff"
+                                                    : "var(--ink)",
+                                        }}
+                                    >
+
+                                        <audio
+                                            controls
+                                            src={
+                                                message.voiceFile
+                                            }
+                                            style={{
+                                                maxWidth:
+                                                    "100%",
+                                            }}
+                                        />
+
+                                        <div
+                                            style={{
+                                                fontSize:
+                                                    11,
+                                                marginTop:
+                                                    5,
+                                                opacity:
+                                                    0.7,
+                                            }}
+                                        >
+                                            {
+                                                formatDuration(
+                                                    message.duration
+                                                )
+                                            }
+                                        </div>
+
+                                    </div>
+
+                                </div>
 
                             );
 
@@ -802,377 +1553,115 @@ function ChatView({
             </div>
 
 
-            {/* INPUT */}
+            {/* RECORDER */}
 
-            <div className="chat-input-bar">
+            <div
+                style={{
+                    padding: 16,
+                    borderTop:
+                        "1px solid var(--line)",
+                }}
+            >
 
-                {recording ? (
+                {audioUrl && (
 
                     <div
                         style={{
-                            flex: 1,
-                            display:
-                                "flex",
-                            alignItems:
-                                "center",
-                            gap: 10,
+                            marginBottom: 12,
                         }}
                     >
 
-                        <LiveBars
-                            count={10}
+                        <audio
+                            controls
+                            src={audioUrl}
+                            style={{
+                                width: "100%",
+                            }}
                         />
 
-                        <span
-                            style={{
-                                fontSize: 13,
-                                color:
-                                    "var(--crimson)",
-                                fontWeight: 600,
-                            }}
-                        >
-                            Recording{" "}
-                            {
-                                formatDuration(
-                                    recordingSeconds
-                                )
-                            }
-                        </span>
-
                     </div>
-
-                ) : (
-
-                    <span
-                        style={{
-                            flex: 1,
-                            fontSize: 14,
-                            color:
-                                "var(--ink4)",
-                        }}
-                    >
-                        Tap mic to record
-                        voice message
-                    </span>
 
                 )}
 
 
-                <button
-                    className={`rec-btn${
-                        recording
-                            ? " recording"
-                            : ""
-                    }`}
-                    style={{
-                        width: 48,
-                        height: 48,
-                        fontSize: 18,
-                    }}
-                    disabled={sending}
-                    onClick={
-                        recording
-                            ? stopRecording
-                            : startRecording
-                    }
-                >
-
-                    {recording
-                        ? "Stop"
-                        : "Mic"}
-
-                </button>
-
-            </div>
-
-        </div>
-
-    );
-
-}
-
-
-// =====================================================
-// VOICE MESSAGE
-// =====================================================
-
-function VoiceMessage({
-    message,
-    mine,
-    playingId,
-    setPlayingId,
-}) {
-
-    const [audio] =
-        useState(
-            () =>
-                new Audio(
-                    message.voiceFile
-                )
-        );
-
-
-    const [duration, setDuration] =
-        useState(
-            message.duration || 0
-        );
-
-
-    const [currentTime, setCurrentTime] =
-        useState(0);
-
-
-    useEffect(() => {
-
-        const loaded =
-            () => {
-
-                if (
-                    Number.isFinite(
-                        audio.duration
-                    )
-                ) {
-
-                    setDuration(
-                        audio.duration
-                    );
-
-                }
-
-            };
-
-
-        const update =
-            () => {
-
-                setCurrentTime(
-                    audio.currentTime
-                );
-
-            };
-
-
-        const ended =
-            () => {
-
-                setPlayingId(null);
-
-                setCurrentTime(0);
-
-            };
-
-
-        audio.addEventListener(
-            "loadedmetadata",
-            loaded
-        );
-
-        audio.addEventListener(
-            "timeupdate",
-            update
-        );
-
-        audio.addEventListener(
-            "ended",
-            ended
-        );
-
-
-        return () => {
-
-            audio.pause();
-
-            audio.removeEventListener(
-                "loadedmetadata",
-                loaded
-            );
-
-            audio.removeEventListener(
-                "timeupdate",
-                update
-            );
-
-            audio.removeEventListener(
-                "ended",
-                ended
-            );
-
-        };
-
-    }, [audio, setPlayingId]);
-
-
-    useEffect(() => {
-
-        if (
-            playingId &&
-            playingId !== message._id
-        ) {
-
-            audio.pause();
-
-        }
-
-    }, [
-        playingId,
-        message._id,
-        audio,
-    ]);
-
-
-    const togglePlay =
-        async () => {
-
-            try {
-
-                if (
-                    audio.paused
-                ) {
-
-                    await audio.play();
-
-                    setPlayingId(
-                        message._id
-                    );
-
-                } else {
-
-                    audio.pause();
-
-                    setPlayingId(
-                        null
-                    );
-
-                }
-
-            } catch (error) {
-
-                console.error(
-                    "Audio playback error:",
-                    error
-                );
-
-            }
-
-        };
-
-
-    const formatTime =
-        value => {
-
-            if (
-                !Number.isFinite(
-                    value
-                )
-            ) {
-                return "0:00";
-            }
-
-
-            const mins =
-                Math.floor(
-                    value / 60
-                );
-
-            const secs =
-                Math.floor(
-                    value % 60
-                );
-
-
-            return `${mins}:${secs
-                .toString()
-                .padStart(2, "0")}`;
-
-        };
-
-
-    return (
-
-        <div
-            className={`msg-row${
-                mine
-                    ? " mine"
-                    : ""
-            }`}
-        >
-
-            {!mine && (
-
-                <Avatar
-                    name={
-                        message.sender
-                            ?.fullname ||
-                        "User"
-                    }
-                    src={
-                        message.sender
-                            ?.avatar
-                    }
-                    size="xs"
-                />
-
-            )}
-
-
-            <div
-                className="msg-bubble"
-                style={{
-                    cursor:
-                        "pointer",
-                }}
-                onClick={
-                    togglePlay
-                }
-            >
-
                 <div
                     style={{
-                        display:
-                            "flex",
-                        alignItems:
-                            "center",
+                        display: "flex",
+                        alignItems: "center",
                         gap: 10,
                     }}
                 >
 
-                    <span
-                        style={{
-                            fontSize: 16,
-                        }}
-                    >
-                        {playingId ===
-                        message._id
-                            ? "⏸"
-                            : "▶"}
-                    </span>
+                    {!recording ? (
+
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={
+                                startRecording
+                            }
+                        >
+                            🎙 Record
+                        </button>
+
+                    ) : (
+
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={
+                                stopRecording
+                            }
+                        >
+                            ⏹ Stop
+                        </button>
+
+                    )}
 
 
-                    <Waveform
-                        playing={
-                            playingId ===
-                            message._id
-                        }
-                        bars={14}
-                    />
+                    {recording && (
+
+                        <LiveBars />
+
+                    )}
+
+
+                    {audioBlob && !recording && (
+
+                        <>
+
+                            <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={
+                                    cancelRecording
+                                }
+                            >
+                                Cancel
+                            </button>
+
+
+                            <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                disabled={
+                                    sending
+                                }
+                                onClick={
+                                    handleSend
+                                }
+                            >
+                                {sending
+                                    ? "Sending..."
+                                    : "Send 🎙"
+                                }
+                            </button>
+
+                        </>
+
+                    )}
 
                 </div>
-
-
-                <span
-                    style={{
-                        fontSize: 12,
-                        opacity: 0.75,
-                    }}
-                >
-                    {formatTime(
-                        currentTime
-                    )}
-                    {" / "}
-                    {formatTime(
-                        duration
-                    )}
-                </span>
 
             </div>
 
